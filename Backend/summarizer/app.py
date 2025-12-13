@@ -14,7 +14,6 @@ def home():
 async def summarize(file: UploadFile):
     try:
         raw = await file.read()
-        # Wrap raw bytes in BytesIO so extract_text_from_file can read it
         text = extract_text_from_file(raw, file.filename) 
 
         if text.startswith("Error") or text == "Unsupported file type.":

@@ -1,11 +1,26 @@
-fastapi==0.114.0
-uvicorn==0.25.0
-transformers==4.42.2
-torch==2.1.1
-pillow==10.0.0
-pytesseract==0.3.12
-python-docx==0.8.12
-PyMuPDF==1.22.5
-pdfplumber==0.10.1
-odfpy==1.4.1
-requests==2.31.0
+# -------- Core API --------
+fastapi
+uvicorn
+
+# -------- File upload support --------
+python-multipart
+
+# -------- OCR --------
+pytesseract
+Pillow
+
+# -------- PDF handling --------
+pdfplumber
+PyMuPDF
+
+# -------- DOCX / ODT --------
+python-docx
+odfpy
+
+# -------- NLP / Summarization --------
+torch
+transformers
+sentencepiece
+
+# -------- Utilities --------
+numpys
