@@ -1,0 +1,21 @@
+fastapi
+uvicorn[standard]
+python-multipart
+pytesseract
+pdfplumber
+Pillow
+scikit-learn
+joblib
+python-magic    # optional, for mime detection
+pandas
+fitz
+pdf2image
+
+transformers
+torch
+
+PyMuPDF
+python-docx
+odfpy
+
+
