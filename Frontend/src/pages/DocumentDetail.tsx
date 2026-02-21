@@ -24,10 +24,9 @@ interface DocumentWithDetails {
   content?: string;
   summary?: string;
   urgency?: Urgency;
-  uploaded_by?: string;
+  uploaded_by?: { _id: string; full_name: string; email: string } | string;
   createdAt?: string;
   department?: { name?: string };
-  profile?: { full_name?: string };
   file_url?: string;
   file_type?: string;
 }
@@ -391,7 +390,7 @@ export default function DocumentDetail() {
                   </span>
 
                   <span className="text-sm text-gray-500">
-                    Uploaded by {document.profile?.full_name || "Unknown"}
+                   Uploaded by {(document.uploaded_by as any)?.full_name || "Unknown"}
                   </span>
                 </div>
 
@@ -416,7 +415,7 @@ export default function DocumentDetail() {
           </div>
 
           {/* Right panel */}
-          <div className="w-96 bg-white border-l border-gray-200 overflow-y-auto">
+          <div className="w-90 bg-white border-l border-gray-200 overflow-y-auto">
             <div className="border-b border-gray-200">
               <div className="flex">
                 {(["permissions", "notes", "highlights", "comments"] as const).map(

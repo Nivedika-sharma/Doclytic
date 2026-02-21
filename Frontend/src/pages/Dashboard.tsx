@@ -12,7 +12,8 @@ import {
   ShoppingCart,
   Mail,
   FileText,
-  Download
+  Download,
+  Search
 } from "lucide-react";
 
 import DashboardLayout from "../components/DashboardLayout";
@@ -74,6 +75,7 @@ export default function Dashboard() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [gmailFiles, setGmailFiles] = useState<GmailFile[]>([]);
   const [gmailLoading, setGmailLoading] = useState(false);
@@ -185,10 +187,31 @@ export default function Dashboard() {
     return icons[name] || Briefcase;
   };
 
+  // Filter documents based on search query and selected department
   const filteredDocuments = Array.isArray(documents)
-    ? selectedDepartment
-      ? documents.filter((d) => d.department_id === selectedDepartment)
-      : documents
+    ? documents.filter((d) => {
+        const matchesSearch = searchQuery === "" || 
+          d.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          d.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          d.department?.name.toLowerCase().includes(searchQuery.toLowerCase());
+        
+        const matchesDepartment = !selectedDepartment || d.department_id === selectedDepartment;
+        
+        return matchesSearch && matchesDepartment;
+      })
+    : [];
+
+  // Filter Gmail files based on search query
+  const filteredGmailFiles = Array.isArray(gmailFiles)
+    ? gmailFiles.filter((file) => {
+        if (searchQuery === "") return true;
+        const query = searchQuery.toLowerCase();
+        return (
+          file.filename.toLowerCase().includes(query) ||
+          file.metadata?.subject?.toLowerCase().includes(query) ||
+          file.metadata?.from?.toLowerCase().includes(query)
+        );
+      })
     : [];
 
   // Show loading while auth is initializing
@@ -218,8 +241,43 @@ export default function Dashboard() {
   return (
     <DashboardLayout>
       <div className="p-8">
-        <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
-        <p className="text-gray-600 mb-6">Welcome back, {profile.full_name}!</p>
+        {/* Header with Search Bar */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
+            <p className="text-gray-600">Welcome back, {profile.full_name}!</p>
+          </div>
+          
+          {/* Search Bar */}
+          <div className="relative w-96">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search documents, files, subjects..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Search Results Summary */}
+        {searchQuery && (
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-800">
+              Found <span className="font-semibold">{filteredDocuments.length}</span> document(s) and{" "}
+              <span className="font-semibold">{filteredGmailFiles.length}</span> Gmail file(s) matching "{searchQuery}"
+            </p>
+          </div>
+        )}
 
         {/* --------------- Recent Documents ---------------- */}
         <div className="bg-white p-6 rounded-xl shadow-sm border mb-8">
@@ -227,6 +285,11 @@ export default function Dashboard() {
             <h2 className="text-xl font-semibold flex items-center gap-2">
               <FileText className="w-5 h-5 text-blue-600" />
               Recent Documents
+              {searchQuery && (
+                <span className="text-sm font-normal text-gray-500">
+                  ({filteredDocuments.length} results)
+                </span>
+              )}
             </h2>
             <div className="flex gap-2">
               <button
@@ -247,7 +310,9 @@ export default function Dashboard() {
           {loading ? (
             <div className="py-10 text-center">Loading...</div>
           ) : filteredDocuments.length === 0 ? (
-            <p className="text-gray-500 text-center py-10">No documents available</p>
+            <p className="text-gray-500 text-center py-10">
+              {searchQuery ? `No documents found matching "${searchQuery}"` : "No documents available"}
+            </p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {filteredDocuments.map((doc) => (
@@ -291,6 +356,11 @@ export default function Dashboard() {
           <div className="flex justify-between mb-6">
             <h2 className="text-xl font-semibold flex items-center gap-2">
               <Mail className="w-5 h-5 text-blue-600" /> Gmail Attachments
+              {searchQuery && (
+                <span className="text-sm font-normal text-gray-500">
+                  ({filteredGmailFiles.length} results)
+                </span>
+              )}
             </h2>
 
             <div className="flex gap-2">
@@ -333,11 +403,15 @@ export default function Dashboard() {
 
           {gmailLoading ? (
             <div className="py-10 text-center">Loading...</div>
-          ) : gmailFiles.length === 0 ? (
-            <p className="text-center text-gray-500 py-10">No Gmail files. Click "Pull Mail" to fetch attachments from your unread emails.</p>
+          ) : filteredGmailFiles.length === 0 ? (
+            <p className="text-center text-gray-500 py-10">
+              {searchQuery 
+                ? `No Gmail files found matching "${searchQuery}"` 
+                : 'No Gmail files. Click "Pull Mail" to fetch attachments from your unread emails.'}
+            </p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {gmailFiles.map((file) => (
+              {filteredGmailFiles.map((file) => (
                 <div
                   key={file._id}
                   className="border rounded-lg p-4 cursor-pointer hover:shadow-lg transition bg-white"

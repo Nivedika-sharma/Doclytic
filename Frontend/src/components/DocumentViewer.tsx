@@ -1,6 +1,8 @@
 // src/components/DocumentViewer.tsx
 import { useState, useEffect } from "react";
-import { FileText, Image as File, Download, ZoomIn, ZoomOut } from "lucide-react";
+import { FileText, File, Download, ZoomIn, ZoomOut } from "lucide-react";
+import mammoth from "mammoth";
+import * as XLSX from "xlsx";
 
 interface DocumentViewerProps {
   fileUrl?: string;
@@ -10,8 +12,8 @@ interface DocumentViewerProps {
   isGmailAttachment?: boolean;
 }
 
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
-const API_URL = `${BASE_URL}`.replace(/\/$/, "");
+const BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/api\/?$/, "");
+const API_URL = `${BASE_URL}/api`;
 
 export async function authFetch(url: string, options: RequestInit = {}) {
   const token = localStorage.getItem("token");
@@ -39,24 +41,58 @@ export default function DocumentViewer({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
   const [zoom, setZoom] = useState(100);
+  const [docHtml, setDocHtml] = useState<string>("");
+  const [sheetHtml, setSheetHtml] = useState<string>("");
+  const [officeLoading, setOfficeLoading] = useState(false);
 
   useEffect(() => {
     loadDocument();
     return () => {
-      // Cleanup blob URL
       if (viewUrl.startsWith("blob:")) {
         URL.revokeObjectURL(viewUrl);
       }
     };
   }, [fileUrl, fileId]);
 
+  // Process office files once viewUrl is ready
+  useEffect(() => {
+    if (!viewUrl) return;
+    const ext = getFileExtension();
+
+    if (["doc", "docx"].includes(ext)) {
+      setOfficeLoading(true);
+      setDocHtml("");
+      fetch(viewUrl)
+        .then((r) => r.arrayBuffer())
+        .then((buf) => mammoth.convertToHtml({ arrayBuffer: buf }))
+        .then((result) => setDocHtml(result.value))
+        .catch((err) => console.error("Mammoth error:", err))
+        .finally(() => setOfficeLoading(false));
+    }
+
+    if (["xls", "xlsx", "csv"].includes(ext)) {
+      setOfficeLoading(true);
+      setSheetHtml("");
+      fetch(viewUrl)
+        .then((r) => r.arrayBuffer())
+        .then((buf) => {
+          const wb = XLSX.read(buf, { type: "array" });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          setSheetHtml(XLSX.utils.sheet_to_html(ws));
+        })
+        .catch((err) => console.error("XLSX error:", err))
+        .finally(() => setOfficeLoading(false));
+    }
+  }, [viewUrl]);
+
   const loadDocument = async () => {
     setLoading(true);
     setError("");
+    setDocHtml("");
+    setSheetHtml("");
 
     try {
       if (fileUrl) {
-        // Direct URL provided
         setViewUrl(fileUrl);
         setLoading(false);
         return;
@@ -74,8 +110,7 @@ export default function DocumentViewer({
           const data = await res.json();
           const url = data.file_url;
           if (!url) throw new Error("No file URL returned from server");
-          const serverRoot = BASE_URL.replace(/\/api\/?$/, "");
-          setViewUrl(url.startsWith("http") ? url : `${serverRoot}${url}`);
+          setViewUrl(url.startsWith("http") ? url : `${BASE_URL}${url}`);
         }
       }
     } catch (err) {
@@ -117,155 +152,163 @@ export default function DocumentViewer({
     }
   };
 
-  const getFileExtension = () => {
+  const getFileExtension = (): string => {
     if (fileType) return fileType.toLowerCase();
-    if (fileName) {
+    if (fileName && fileName.includes(".")) {
       const ext = fileName.split(".").pop()?.toLowerCase();
-      if (ext && ext !== fileName.toLowerCase()) return ext; // only if it's actually an extension
-    }
-    // fallback: check the viewUrl itself
-    if (viewUrl) {
-      const ext = viewUrl.split("?")[0].split(".").pop()?.toLowerCase();
       if (ext) return ext;
+    }
+    if (viewUrl) {
+      const cleanUrl = viewUrl.split("?")[0];
+      const ext = cleanUrl.split(".").pop()?.toLowerCase();
+      if (ext && ext.length <= 5) return ext;
     }
     return "";
   };
 
- const renderPreview = () => {
-  const ext = getFileExtension();
+  const renderOfficeLoading = (color: string, label: string) => (
+    <div className="flex flex-col items-center justify-center h-full gap-3">
+      <div className={`animate-spin rounded-full h-8 w-8 border-b-2 ${color}`} />
+      <span className="text-gray-600 text-sm">{label}</span>
+    </div>
+  );
 
-  // PDF
-  if (ext === "pdf" || fileType?.includes("pdf")) {
-    return (
-      <iframe
-        src={`${viewUrl}#view=FitH`}
-        className="w-full h-full border-0"
-        title="PDF Viewer"
-        style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top left" }}
-      />
-    );
-  }
+  const renderPreview = () => {
+    const ext = getFileExtension();
 
-  // Images
-  if (["jpg", "jpeg", "png", "gif", "bmp", "webp", "svg"].includes(ext) || fileType?.includes("image")) {
-    return (
-      <div className="flex items-center justify-center h-full bg-gray-50 overflow-auto">
-        <img
-          src={viewUrl}
-          alt={fileName}
-          className="max-w-full h-auto"
-          style={{ transform: `scale(${zoom / 100})` }}
-        />
-      </div>
-    );
-  }
-
-  // Video
-  if (["mp4", "webm", "ogg", "mov", "mkv"].includes(ext) || fileType?.includes("video")) {
-    return (
-      <div className="flex items-center justify-center h-full bg-black">
-        <video
-          src={viewUrl}
-          controls
-          className="max-w-full max-h-full"
-          style={{ maxHeight: "100%" }}
-        >
-          Your browser does not support video playback.
-        </video>
-      </div>
-    );
-  }
-
-  // Audio
-  if (["mp3", "wav", "ogg", "m4a", "aac", "flac"].includes(ext) || fileType?.includes("audio")) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full bg-gray-50 gap-4">
-        <div className="w-24 h-24 rounded-full bg-blue-100 flex items-center justify-center">
-          <svg className="w-12 h-12 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/>
-          </svg>
-        </div>
-        <p className="text-gray-700 font-medium">{fileName}</p>
-        <audio src={viewUrl} controls className="w-80">
-          Your browser does not support audio playback.
-        </audio>
-      </div>
-    );
-  }
-
-  // Text / Code
-  if (["txt", "js", "jsx", "ts", "tsx", "json", "xml", "html", "css", "md"].includes(ext)) {
-    return (
-      <iframe src={viewUrl} className="w-full h-full border-0 bg-white" title="Text Viewer" />
-    );
-  }
-
-  // Word, Excel, PPT — use Google Docs Viewer (works for public/S3 URLs)
-  if (
-    ["doc", "docx", "xls", "xlsx", "ppt", "pptx", "csv"].includes(ext) ||
-    fileType?.includes("word") ||
-    fileType?.includes("excel") ||
-    fileType?.includes("spreadsheet") ||
-    fileType?.includes("presentation") ||
-    fileType?.includes("msword") ||
-    fileType?.includes("officedocument")
-  ) {
-    // For S3/public URLs, Google Docs viewer works great
-    const isPublicUrl = viewUrl.startsWith("http") && !viewUrl.includes("localhost");
-    const googleViewerUrl = `https://docs.google.com/gviewer?url=${encodeURIComponent(viewUrl)}&embedded=true`;
-
-    if (isPublicUrl) {
+    // PDF
+    if (ext === "pdf" || fileType?.includes("pdf")) {
       return (
         <iframe
-          src={googleViewerUrl}
+          src={`${viewUrl}#view=FitH`}
           className="w-full h-full border-0"
-          title="Document Viewer"
-          sandbox="allow-scripts allow-same-origin allow-popups"
+          title="PDF Viewer"
+          style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top left" }}
         />
       );
     }
 
-    // For localhost, show download prompt (Google can't reach localhost)
-    const iconColor = ["xls", "xlsx", "csv"].includes(ext) ? "text-green-600" :
-                      ["ppt", "pptx"].includes(ext) ? "text-orange-600" : "text-blue-600";
-    const label = ["xls", "xlsx", "csv"].includes(ext) ? "Spreadsheet" :
-                  ["ppt", "pptx"].includes(ext) ? "Presentation" : "Word Document";
+    // Images
+    if (["jpg", "jpeg", "png", "gif", "bmp", "webp", "svg"].includes(ext) || fileType?.includes("image")) {
+      return (
+        <div className="flex items-center justify-center h-full bg-gray-50 overflow-auto">
+          <img
+            src={viewUrl}
+            alt={fileName}
+            className="max-w-full h-auto"
+            style={{ transform: `scale(${zoom / 100})` }}
+          />
+        </div>
+      );
+    }
 
+    // Video
+    if (["mp4", "webm", "ogg", "mov", "mkv", "avi"].includes(ext) || fileType?.includes("video")) {
+      return (
+        <div className="flex items-center justify-center h-full bg-black">
+          <video src={viewUrl} controls className="max-w-full max-h-full">
+            Your browser does not support video playback.
+          </video>
+        </div>
+      );
+    }
+
+    // Audio
+    if (["mp3", "wav", "ogg", "m4a", "aac", "flac"].includes(ext) || fileType?.includes("audio")) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full bg-gray-50 gap-4">
+          <div className="w-24 h-24 rounded-full bg-blue-100 flex items-center justify-center">
+            <svg className="w-12 h-12 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z" />
+            </svg>
+          </div>
+          <p className="text-gray-700 font-medium">{fileName}</p>
+          <audio src={viewUrl} controls className="w-80">
+            Your browser does not support audio playback.
+          </audio>
+        </div>
+      );
+    }
+
+    // Text / Code
+    if (["txt", "js", "jsx", "ts", "tsx", "json", "xml", "html", "css", "md"].includes(ext)) {
+      return <iframe src={viewUrl} className="w-full h-full border-0 bg-white" title="Text Viewer" />;
+    }
+
+    // Word Documents — mammoth converts to HTML in browser
+    if (["doc", "docx"].includes(ext) || fileType?.includes("word") || fileType?.includes("msword")) {
+      if (officeLoading) return renderOfficeLoading("border-blue-600", "Converting Word document...");
+      if (docHtml) {
+        return (
+          <div
+            className="w-full h-full overflow-auto p-8 bg-white prose max-w-none"
+            dangerouslySetInnerHTML={{ __html: docHtml }}
+          />
+        );
+      }
+    }
+
+    // Excel / CSV — SheetJS converts to HTML table in browser
+    if (["xls", "xlsx", "csv"].includes(ext) || fileType?.includes("excel") || fileType?.includes("spreadsheet")) {
+      if (officeLoading) return renderOfficeLoading("border-green-600", "Loading spreadsheet...");
+      if (sheetHtml) {
+        return (
+          <div
+            className="w-full h-full overflow-auto p-4 bg-white"
+            style={{ fontSize: "13px" }}
+            dangerouslySetInnerHTML={{ __html: sheetHtml }}
+          />
+        );
+      }
+    }
+
+    // PPT — no browser-side renderer, use Google Docs for public URLs
+    if (["ppt", "pptx"].includes(ext) || fileType?.includes("presentation")) {
+      const isPublicUrl = viewUrl.startsWith("http") && !viewUrl.includes("localhost");
+      if (isPublicUrl) {
+        return (
+          <iframe
+            src={`https://docs.google.com/gviewer?url=${encodeURIComponent(viewUrl)}&embedded=true`}
+            className="w-full h-full border-0"
+            title="Presentation Viewer"
+          />
+        );
+      }
+      return (
+        <div className="flex flex-col items-center justify-center h-full bg-gray-50 p-8 gap-4">
+          <FileText className="w-20 h-20 text-orange-500" />
+          <p className="text-gray-700 font-semibold">PowerPoint Presentation</p>
+          <p className="text-gray-500 text-sm text-center">
+            PowerPoint files can't be previewed locally.<br />
+            Upload to a public server (S3) to enable preview.
+          </p>
+          <button
+            onClick={handleDownload}
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg flex items-center gap-2 hover:bg-blue-700"
+          >
+            <Download className="w-5 h-5" />
+            Download to View
+          </button>
+        </div>
+      );
+    }
+
+    // Default fallback
     return (
-      <div className="flex flex-col items-center justify-center h-full bg-gray-50 p-8 gap-4">
-        <FileText className={`w-20 h-20 ${iconColor}`} />
-        <p className="text-gray-700 font-semibold">{label}</p>
-        <p className="text-gray-500 text-sm text-center">
-          Office documents require a public URL for in-browser preview.<br />
-          Deploy to production with S3 to enable preview.
-        </p>
+      <div className="flex flex-col items-center justify-center h-full bg-gray-50 p-8">
+        <File className="w-20 h-20 text-gray-400 mb-4" />
+        <p className="text-gray-700 font-semibold mb-2">{fileName}</p>
+        <p className="text-gray-600 mb-4 text-center">Preview not available for this file type</p>
         <button
           onClick={handleDownload}
           className="px-6 py-3 bg-blue-600 text-white rounded-lg flex items-center gap-2 hover:bg-blue-700"
         >
           <Download className="w-5 h-5" />
-          Download to View
+          Download File
         </button>
       </div>
     );
-  }
-
-  // Default
-  return (
-    <div className="flex flex-col items-center justify-center h-full bg-gray-50 p-8">
-      <File className="w-20 h-20 text-gray-400 mb-4" />
-      <p className="text-gray-700 font-semibold mb-2">{fileName}</p>
-      <p className="text-gray-600 mb-4 text-center">Preview not available for this file type</p>
-      <button
-        onClick={handleDownload}
-        className="px-6 py-3 bg-blue-600 text-white rounded-lg flex items-center gap-2 hover:bg-blue-700"
-      >
-        <Download className="w-5 h-5" />
-        Download File
-      </button>
-    </div>
-  );
-};
+  };
 
   if (loading) {
     return (
@@ -296,35 +339,21 @@ export default function DocumentViewer({
 
   return (
     <div className="h-full flex flex-col bg-white rounded-lg border">
-      {/* Zoom Controls */}
-      {(getFileExtension() === "pdf" || ["jpg", "jpeg", "png", "gif", "bmp", "webp"].includes(getFileExtension())) && (
+      {/* Zoom Controls — shown for PDF and images */}
+      {["pdf", "jpg", "jpeg", "png", "gif", "bmp", "webp"].includes(getFileExtension()) && (
         <div className="flex items-center gap-2 p-3 border-b bg-gray-50">
-          <button
-            onClick={() => setZoom(Math.max(50, zoom - 25))}
-            className="p-2 hover:bg-gray-200 rounded"
-            title="Zoom Out"
-          >
+          <button onClick={() => setZoom(Math.max(50, zoom - 25))} className="p-2 hover:bg-gray-200 rounded" title="Zoom Out">
             <ZoomOut className="w-4 h-4" />
           </button>
           <span className="text-sm font-medium min-w-[60px] text-center">{zoom}%</span>
-          <button
-            onClick={() => setZoom(Math.min(200, zoom + 25))}
-            className="p-2 hover:bg-gray-200 rounded"
-            title="Zoom In"
-          >
+          <button onClick={() => setZoom(Math.min(200, zoom + 25))} className="p-2 hover:bg-gray-200 rounded" title="Zoom In">
             <ZoomIn className="w-4 h-4" />
           </button>
-          <button
-            onClick={() => setZoom(100)}
-            className="ml-2 px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 rounded"
-          >
+          <button onClick={() => setZoom(100)} className="ml-2 px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 rounded">
             Reset
           </button>
-          <div className="flex-1"></div>
-          <button
-            onClick={handleDownload}
-            className="px-3 py-1 bg-blue-600 text-white rounded flex items-center gap-2 hover:bg-blue-700"
-          >
+          <div className="flex-1" />
+          <button onClick={handleDownload} className="px-3 py-1 bg-blue-600 text-white rounded flex items-center gap-2 hover:bg-blue-700">
             <Download className="w-4 h-4" />
             Download
           </button>
@@ -332,9 +361,7 @@ export default function DocumentViewer({
       )}
 
       {/* Preview Area */}
-      <div className="flex-1 overflow-auto">
-        {renderPreview()}
-      </div>
+      <div className="flex-1 overflow-auto">{renderPreview()}</div>
     </div>
   );
 }
