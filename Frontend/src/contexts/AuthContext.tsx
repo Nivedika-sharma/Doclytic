@@ -7,6 +7,7 @@ export interface UserProfile {
   full_name: string;
   avatar?: string;
   avatar_url?: string;
+  designation?: string;
 }
 
 interface AuthContextType {
