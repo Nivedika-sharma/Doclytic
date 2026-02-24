@@ -12,7 +12,8 @@ import {
   ShoppingCart,
   Mail,
   FileText,
-  Download
+  Download,
+  Search
 } from "lucide-react";
 
 import DashboardLayout from "../components/DashboardLayout";
@@ -74,6 +75,7 @@ export default function Dashboard() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [gmailFiles, setGmailFiles] = useState<GmailFile[]>([]);
   const [gmailLoading, setGmailLoading] = useState(false);
@@ -115,8 +117,8 @@ export default function Dashboard() {
     setLoading(true);
     try {
       const [docsRes, deptRes] = await Promise.all([
-        authFetch(`${API_URL}/api/documents`),
-        authFetch(`${API_URL}/api/departments`),
+        authFetch(`${API_URL}/documents`),
+        authFetch(`${API_URL}/departments`),
       ]);
 
       const docsJson = await docsRes.json();
@@ -135,7 +137,7 @@ export default function Dashboard() {
   const loadGmailFiles = async () => {
     setGmailLoading(true);
     try {
-      const res = await authFetch(`${API_URL}/api/mail/files`, { method: "GET" });
+      const res = await authFetch(`${API_URL}/mail/files`, { method: "GET" });
       if (!res.ok) {
         const text = await res.text().catch(() => "");
         throw new Error(`Failed to load Gmail files: ${res.status} ${text}`);
@@ -153,7 +155,7 @@ export default function Dashboard() {
 
   const handleDownloadGmailFile = async (fileId: string, filename: string) => {
     try {
-      const res = await authFetch(`${API_URL}/api/mail/download/${fileId}`);
+      const res = await authFetch(`${API_URL}/mail/download/${fileId}`);
       if (!res.ok) {
         alert("Failed to download file");
         return;
@@ -185,10 +187,31 @@ export default function Dashboard() {
     return icons[name] || Briefcase;
   };
 
+  // Filter documents based on search query and selected department
   const filteredDocuments = Array.isArray(documents)
-    ? selectedDepartment
-      ? documents.filter((d) => d.department_id === selectedDepartment)
-      : documents
+    ? documents.filter((d) => {
+        const matchesSearch = searchQuery === "" || 
+          d.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          d.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          d.department?.name.toLowerCase().includes(searchQuery.toLowerCase());
+        
+        const matchesDepartment = !selectedDepartment || d.department_id === selectedDepartment;
+        
+        return matchesSearch && matchesDepartment;
+      })
+    : [];
+
+  // Filter Gmail files based on search query
+  const filteredGmailFiles = Array.isArray(gmailFiles)
+    ? gmailFiles.filter((file) => {
+        if (searchQuery === "") return true;
+        const query = searchQuery.toLowerCase();
+        return (
+          file.filename.toLowerCase().includes(query) ||
+          file.metadata?.subject?.toLowerCase().includes(query) ||
+          file.metadata?.from?.toLowerCase().includes(query)
+        );
+      })
     : [];
 
   // Show loading while auth is initializing
@@ -216,169 +239,254 @@ export default function Dashboard() {
   }
 
   return (
-    <DashboardLayout>
-      <div className="p-8">
-        <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
-        <p className="text-gray-600 mb-6">Welcome back, {profile.full_name}!</p>
+  <DashboardLayout>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-8">
 
-        {/* --------------- Recent Documents ---------------- */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold flex items-center gap-2">
-              <FileText className="w-5 h-5 text-blue-600" />
-              Recent Documents
-            </h2>
-            <div className="flex gap-2">
-              <button
-                onClick={loadData}
-                className="px-4 py-2 bg-gray-100 rounded-lg flex items-center gap-2 hover:bg-gray-200 transition"
-              >
-                <RefreshCw className="w-4 h-4" /> Refresh
-              </button>
-              <button
-                onClick={() => navigate("/upload")}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg flex items-center gap-2 hover:bg-blue-700 transition"
-              >
-                <Upload className="w-4 h-4" /> Upload
-              </button>
+      {/* ================= HERO HEADER ================= */}
+      <div className="mb-12">
+        <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-3xl p-10 text-white shadow-2xl relative overflow-hidden">
+          
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-8">
+            
+            <div>
+              <h1 className="text-4xl font-bold tracking-tight">
+                Welcome back, {profile.full_name}
+              </h1>
+              <p className="mt-3 text-blue-100 text-lg">
+                Here’s what’s happening with your documents today.
+              </p>
             </div>
-          </div>
 
-          {loading ? (
-            <div className="py-10 text-center">Loading...</div>
-          ) : filteredDocuments.length === 0 ? (
-            <p className="text-gray-500 text-center py-10">No documents available</p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filteredDocuments.map((doc) => (
-                <div
-                  key={doc._id}
-                  onClick={() => navigate(`/document/${doc._id}`)}
-                  className="border rounded-lg p-4 cursor-pointer hover:shadow-lg transition bg-white"
+            {/* Search */}
+            <div className="relative w-full md:w-96">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search documents, attachments..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-12 pr-10 py-3 rounded-xl bg-white text-gray-800 shadow-lg focus:ring-2 focus:ring-white outline-none transition"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
-                  <div className="flex justify-between mb-3">
-                    <h3 className="font-semibold line-clamp-2 flex-1">{doc.title}</h3>
-                    <span className={`px-2 py-1 rounded text-xs border ${getUrgencyColor(doc.urgency)} ml-2 h-fit`}>
-                      {doc.urgency}
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-600 line-clamp-2 mb-3">{doc.summary}</p>
-                  <div className="flex justify-between text-xs text-gray-500">
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {new Date(doc.createdAt).toLocaleDateString()}
-                    </span>
-                    {doc.department && (
-                      <span
-                        className="px-2 py-1 rounded-full"
-                        style={{
-                          backgroundColor: `${doc.department.color}20`,
-                          color: doc.department.color,
-                        }}
-                      >
-                        {doc.department.name}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
+                  ✕
+                </button>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* ---------------- Gmail Files ---------------- */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border mb-8">
-          <div className="flex justify-between mb-6">
-            <h2 className="text-xl font-semibold flex items-center gap-2">
-              <Mail className="w-5 h-5 text-blue-600" /> Gmail Attachments
-            </h2>
-
-            <div className="flex gap-2">
-              <button
-                onClick={loadGmailFiles}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2 hover:bg-green-700 transition"
-              >
-                <RefreshCw className="w-4 h-4" /> Reload
-              </button>
-              <button
-                onClick={async () => {
-                  setGmailLoading(true);
-                  try {
-                    const resp = await authFetch(`${API_URL}/api/mail/fetch`, {
-                      method: "POST",
-                      body: JSON.stringify({}),
-                    });
-                    if (!resp.ok) {
-                      const errorText = await resp.text().catch(() => "");
-                      console.error("Fetch failed:", errorText);
-                      alert(`Failed to fetch emails: ${errorText}`);
-                      return;
-                    }
-                    const result = await resp.json();
-                    console.log("Emails fetched:", result);
-                    await loadGmailFiles();
-                  } catch (e) {
-                    console.error("Trigger fetch error:", e);
-                    alert("Error fetching emails. Check console for details.");
-                  } finally {
-                    setGmailLoading(false);
-                  }
-                }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg flex items-center gap-2 hover:bg-blue-700 transition"
-              >
-                <Upload className="w-4 h-4" /> Pull Mail
-              </button>
-            </div>
           </div>
-
-          {gmailLoading ? (
-            <div className="py-10 text-center">Loading...</div>
-          ) : gmailFiles.length === 0 ? (
-            <p className="text-center text-gray-500 py-10">No Gmail files. Click "Pull Mail" to fetch attachments from your unread emails.</p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {gmailFiles.map((file) => (
-                <div
-                  key={file._id}
-                  className="border rounded-lg p-4 cursor-pointer hover:shadow-lg transition bg-white"
-                  onClick={() => navigate(`/gmail-document/${file._id}`)}
-                >
-                  <div className="flex justify-between mb-3">
-                    <h3 className="font-semibold line-clamp-2 flex-1">{file.filename}</h3>
-                    <span className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800 border border-blue-200 ml-2 h-fit">
-                      {(file.length / 1024).toFixed(1)} KB
-                    </span>
-                  </div>
-                  
-                  {file.metadata?.subject && (
-                    <p className="text-sm text-gray-600 line-clamp-2 mb-3">
-                      Subject: {file.metadata.subject}
-                    </p>
-                  )}
-
-                  <div className="flex justify-between items-center text-xs text-gray-500">
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {new Date(file.uploadDate).toLocaleDateString()}
-                    </span>
-
-                    {file.metadata?.from && (
-                      <span className="px-2 py-1 bg-gray-100 rounded-full text-gray-700 max-w-[150px] truncate">
-                        {file.metadata.from.split("<")[0].trim()}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="mt-3 pt-3 border-t flex items-center justify-center text-blue-600 text-sm font-medium">
-                    <FileText className="w-4 h-4 mr-1" />
-                    Click to View Details
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </div>
-    </DashboardLayout>
-  );
+
+      {/* ================= STATS CARDS ================= */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+
+        {/* Total Documents */}
+        <div className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition">
+          <div className="flex justify-between items-center">
+            <div>
+              <p className="text-gray-500 text-sm">Total Documents</p>
+              <h2 className="text-3xl font-bold text-gray-800 mt-1">
+                {documents.length}
+              </h2>
+            </div>
+            <FileText className="w-10 h-10 text-blue-600" />
+          </div>
+        </div>
+
+        {/* High Priority */}
+        <div className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition">
+          <div className="flex justify-between items-center">
+            <div>
+              <p className="text-gray-500 text-sm">High Priority</p>
+              <h2 className="text-3xl font-bold text-red-600 mt-1">
+                {documents.filter(d => d.urgency === "high").length}
+              </h2>
+            </div>
+            <Clock className="w-10 h-10 text-red-500" />
+          </div>
+        </div>
+
+        {/* Gmail Files */}
+        <div className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition">
+          <div className="flex justify-between items-center">
+            <div>
+              <p className="text-gray-500 text-sm">Gmail Attachments</p>
+              <h2 className="text-3xl font-bold text-indigo-600 mt-1">
+                {gmailFiles.length}
+              </h2>
+            </div>
+            <Mail className="w-10 h-10 text-indigo-500" />
+          </div>
+        </div>
+
+      </div>
+
+      {/* ================= DOCUMENTS SECTION ================= */}
+      <div className="bg-white/80 backdrop-blur-lg p-8 rounded-3xl shadow-xl mb-12 border border-white/40">
+        
+        <div className="flex justify-between items-center mb-8">
+          <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
+            <FileText className="w-6 h-6 text-blue-600" />
+            Recent Documents
+          </h2>
+
+          <div className="flex gap-3">
+            <button
+              onClick={loadData}
+              className="px-5 py-2.5 bg-gray-100 rounded-xl hover:bg-gray-200 transition flex items-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" /> Refresh
+            </button>
+
+            <button
+              onClick={() => navigate("/upload")}
+              className="px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-md hover:shadow-lg transition flex items-center gap-2"
+            >
+              <Upload className="w-4 h-4" /> Upload
+            </button>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="py-16 text-center text-gray-500">Loading...</div>
+        ) : filteredDocuments.length === 0 ? (
+          <div className="py-16 text-center">
+            <FileText className="w-12 h-12 mx-auto text-gray-300 mb-4" />
+            <p className="text-gray-500 text-lg">No documents found.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {filteredDocuments.map((doc) => (
+              <div
+                key={doc._id}
+                onClick={() => navigate(`/document/${doc._id}`)}
+                className="group bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 cursor-pointer"
+              >
+                <div className="flex justify-between mb-4">
+                  <h3 className="font-semibold text-gray-800 group-hover:text-blue-600 transition">
+                    {doc.title}
+                  </h3>
+                  <span className={`px-3 py-1 rounded-full text-xs border ${getUrgencyColor(doc.urgency)}`}>
+                    {doc.urgency}
+                  </span>
+                </div>
+
+                <p className="text-sm text-gray-500 line-clamp-2 mb-4">
+                  {doc.summary}
+                </p>
+
+                <div className="flex justify-between text-xs text-gray-400">
+                  <span>
+                    {new Date(doc.createdAt).toLocaleDateString()}
+                  </span>
+                  {doc.department && (
+                    <span
+                      className="px-3 py-1 rounded-full text-xs"
+                      style={{
+                        backgroundColor: `${doc.department.color}15`,
+                        color: doc.department.color,
+                      }}
+                    >
+                      {doc.department.name}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ================= GMAIL SECTION ================= */}
+      <div className="bg-white/80 backdrop-blur-lg p-8 rounded-3xl shadow-xl border border-white/40">
+        
+        <div className="flex justify-between items-center mb-8">
+          <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
+            <Mail className="w-6 h-6 text-indigo-600" />
+            Gmail Attachments
+          </h2>
+
+          <div className="flex gap-3">
+            <button
+              onClick={loadGmailFiles}
+              className="px-5 py-2.5 bg-gray-100 rounded-xl hover:bg-gray-200 transition flex items-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" /> Reload
+            </button>
+
+            <button
+              onClick={async () => {
+                setGmailLoading(true);
+                try {
+                  const resp = await authFetch(`${API_URL}/mail/fetch`, {
+                    method: "POST",
+                    body: JSON.stringify({}),
+                  });
+                  if (resp.ok) await loadGmailFiles();
+                } finally {
+                  setGmailLoading(false);
+                }
+              }}
+              className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-md hover:shadow-lg transition flex items-center gap-2"
+            >
+              <Upload className="w-4 h-4" /> Pull Mail
+            </button>
+          </div>
+        </div>
+
+        {gmailLoading ? (
+          <div className="py-16 text-center text-gray-500">Loading...</div>
+        ) : filteredGmailFiles.length === 0 ? (
+          <div className="py-16 text-center">
+            <Mail className="w-12 h-12 mx-auto text-gray-300 mb-4" />
+            <p className="text-gray-500 text-lg">
+              No Gmail attachments found.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {filteredGmailFiles.map((file) => (
+              <div
+                key={file._id}
+                onClick={() => navigate(`/gmail-document/${file._id}`)}
+                className="group bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 cursor-pointer"
+              >
+                <div className="flex justify-between mb-4">
+                  <h3 className="font-semibold text-gray-800 group-hover:text-indigo-600 transition">
+                    {file.filename}
+                  </h3>
+                  <span className="px-3 py-1 rounded-full text-xs bg-indigo-50 text-indigo-700 border border-indigo-200">
+                    {(file.length / 1024).toFixed(1)} KB
+                  </span>
+                </div>
+
+                {file.metadata?.subject && (
+                  <p className="text-sm text-gray-500 line-clamp-2 mb-4">
+                    {file.metadata.subject}
+                  </p>
+                )}
+
+                <div className="flex justify-between text-xs text-gray-400">
+                  <span>
+                    {new Date(file.uploadDate).toLocaleDateString()}
+                  </span>
+                  {file.metadata?.from && (
+                    <span className="truncate max-w-[120px]">
+                      {file.metadata.from.split("<")[0].trim()}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+    </div>
+  </DashboardLayout>
+);
 }
