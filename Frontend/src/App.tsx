@@ -7,7 +7,7 @@ import Dashboard from './pages/Dashboard';
 import DocumentDetail from './pages/DocumentDetail';
 import Profile from './pages/Profile';
 import DocumentUpload from './pages/DocumentUpload';
-import GmailDocument from './pages/gmailDocument';
+import GmailDocument from './pages/GmailDocument';
 
 function App() {
   return (
