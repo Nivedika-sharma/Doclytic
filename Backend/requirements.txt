@@ -10,7 +10,7 @@ python-magic
 pandas
 pdf2image
 
-transformers==4.35.0
+transformers>=4.38
 torch
 
 PyMuPDF
