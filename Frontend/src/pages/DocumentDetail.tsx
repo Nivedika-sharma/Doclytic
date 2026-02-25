@@ -14,7 +14,7 @@ import DashboardLayout from "../components/DashboardLayout";
 import { useAuth } from "../contexts/AuthContext";
 import DocumentViewer from "../components/DocumentViewer";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 type Urgency = "low" | "medium" | "high";
 
