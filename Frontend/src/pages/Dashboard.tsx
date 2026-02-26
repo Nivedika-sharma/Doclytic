@@ -12,9 +12,9 @@ import {
   ShoppingCart,
   Mail,
   FileText,
-  Download,
   Search,
-  Sparkles
+  Sparkles,
+  Trash2
 } from "lucide-react";
 
 import DashboardLayout from "../components/DashboardLayout";
@@ -33,6 +33,8 @@ interface DocumentWithDetails {
   summary: string;
   urgency: "high" | "medium" | "low";
   department_id: string;
+  routed_department?: string;
+  uploaded_by?: string | { _id?: string };
   department?: Department;
   createdAt: string;
 }
@@ -43,10 +45,12 @@ interface GmailFile {
   length: number;
   uploadDate: string;
   metadata?: {
-    userId: string;
-    from: string;
-    subject: string;
-    messageId: string;
+    userId?: string;
+    from?: string;
+    subject?: string;
+    messageId?: string;
+    routedDepartment?: string;
+    linkedDocumentId?: string;
   };
   summary?: string;
   urgency: "high" | "medium" | "low";
@@ -57,6 +61,10 @@ interface IngestResponse {
   classification?: {
     label: string;
     confidence: number;
+  };
+  actions?: {
+    email?: { route_to?: string };
+    storage?: { route_to?: string };
   };
 }
 
@@ -73,12 +81,15 @@ export async function authFetch(url: string, options: RequestInit = {}) {
   if (!(options.body instanceof FormData)) {
     headers["Content-Type"] = "application/json";
   }
+  headers["Cache-Control"] = "no-cache";
+  headers["Pragma"] = "no-cache";
 
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
   return fetch(url, {
     ...options,
     credentials: "include",
+    cache: "no-store",
     headers: {
       ...headers,
       ...(options.headers || {}),
@@ -172,6 +183,48 @@ export default function Dashboard() {
     return aiRes.json();
   };
 
+  const ensureDepartmentsLoaded = async (): Promise<Department[]> => {
+    if (departments.length > 0) return departments;
+    const deptRes = await authFetch(`${API_URL}/api/departments`);
+    if (!deptRes.ok) return departments;
+    const deptsJson = await deptRes.json();
+    const normalized = Array.isArray(deptsJson) ? deptsJson : deptsJson.data || [];
+    setDepartments(normalized);
+    return normalized;
+  };
+
+  const getRoutedDepartmentName = (aiData: IngestResponse): string | null => {
+    const routedName = aiData.actions?.email?.route_to || aiData.actions?.storage?.route_to;
+    if (!routedName || routedName.toLowerCase() === "manual_review") return null;
+    return routedName;
+  };
+
+  const getDepartmentIdByName = (
+    departmentName: string | null,
+    departmentList: Department[] = departments
+  ): string | undefined => {
+    if (!departmentName) return undefined;
+    const normalize = (value: string) => {
+      const v = value.trim().toLowerCase();
+      if (v === "finances") return "finance";
+      return v;
+    };
+
+    const wanted = normalize(departmentName);
+    const exact = departmentList.find((d) => normalize(d.name) === wanted);
+    if (exact) return exact._id;
+
+    if (wanted === "operations" || wanted === "operation") {
+      const admin = departmentList.find((d) => normalize(d.name) === "admin");
+      if (admin) return admin._id;
+    }
+
+    return undefined;
+  };
+
+  const toDepartmentSlug = (departmentName: string) =>
+    departmentName.trim().toLowerCase().replace(/\s+/g, "-");
+
   const processGmailFileWithAI = async (file: GmailFile) => {
     try {
       const res = await authFetch(`${API_URL}/api/mail/download/${file._id}`);
@@ -181,12 +234,39 @@ export default function Dashboard() {
       const uploadFile = new File([blob], file.filename, { type: blob.type });
       const aiData = await runClassifierAndSummarizer(uploadFile);
       const generatedSummary = aiData.summary || "AI could not generate a summary.";
+      const routedDepartment = getRoutedDepartmentName(aiData);
+      const deptList = await ensureDepartmentsLoaded();
+      const routedDepartmentId = getDepartmentIdByName(routedDepartment, deptList);
+
+      let linkedDocumentId: string | undefined;
+      if (routedDepartmentId) {
+        const createFormData = new FormData();
+        createFormData.append("file", uploadFile);
+        createFormData.append("title", file.filename.replace(/\.[^/.]+$/, ""));
+        createFormData.append("summary", generatedSummary);
+        createFormData.append("department_id", routedDepartmentId);
+        if (routedDepartment) createFormData.append("routed_department", routedDepartment);
+
+        const createDocRes = await authFetch(`${API_URL}/api/documents`, {
+          method: "POST",
+          body: createFormData,
+        });
+
+        if (createDocRes.ok) {
+          const createdDoc = await createDocRes.json();
+          linkedDocumentId = createdDoc?._id;
+        }
+      }
 
       const saveRes = await authFetch(
         `${API_URL}/api/mail/generate-summary/${file._id}`,
         {
           method: "POST",
-          body: JSON.stringify({ summary: generatedSummary }),
+          body: JSON.stringify({
+            summary: generatedSummary,
+            routedDepartment,
+            linkedDocumentId,
+          }),
         }
       );
 
@@ -197,7 +277,17 @@ export default function Dashboard() {
 
       setGmailFiles((prev) =>
         prev.map((f) =>
-          f._id === file._id ? { ...f, summary: generatedSummary } : f
+          f._id === file._id
+            ? {
+                ...f,
+                summary: generatedSummary,
+                metadata: {
+                  ...(f.metadata || ({} as GmailFile["metadata"])),
+                  routedDepartment: routedDepartment || undefined,
+                  linkedDocumentId,
+                },
+              }
+            : f
         )
       );
     } catch (error) {
@@ -224,20 +314,32 @@ export default function Dashboard() {
 
       if (res.ok) {
         const uploadedDoc = await res.json();
+        let routedDepartmentToNavigate: string | null = null;
 
         try {
           const aiData = await runClassifierAndSummarizer(file);
           const generatedSummary = aiData.summary || "AI could not generate a summary.";
+          const routedDepartment = getRoutedDepartmentName(aiData);
+          routedDepartmentToNavigate = routedDepartment;
+          const deptList = await ensureDepartmentsLoaded();
+          const routedDepartmentId = getDepartmentIdByName(routedDepartment, deptList);
 
           await authFetch(`${API_URL}/api/documents/${uploadedDoc._id}`, {
             method: "PUT",
-            body: JSON.stringify({ summary: generatedSummary }),
+            body: JSON.stringify({
+              summary: generatedSummary,
+              ...(routedDepartmentId ? { department_id: routedDepartmentId } : {}),
+              ...(routedDepartment ? { routed_department: routedDepartment } : {}),
+            }),
           });
         } catch (aiErr) {
           console.error("Auto classifier+summarizer failed after upload:", aiErr);
         }
 
         await loadData(); // Refresh list immediately
+        if (routedDepartmentToNavigate) {
+          navigate(`/department/${toDepartmentSlug(routedDepartmentToNavigate)}`);
+        }
       } else {
         alert("Upload failed");
       }
@@ -385,6 +487,49 @@ export default function Dashboard() {
     }
   };
 
+  const handleDeleteDocument = async (docId: string) => {
+    const confirmed = window.confirm("Delete this document permanently?");
+    if (!confirmed) return;
+
+    try {
+      const res = await authFetch(`${API_URL}/api/documents/${docId}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(text || "Failed to delete document");
+      }
+
+      setDocuments((prev) => prev.filter((d) => d._id !== docId));
+      if (summarizingId === docId) setSummarizingId(null);
+    } catch (error) {
+      console.error("Delete document error:", error);
+      alert("Could not delete document.");
+    }
+  };
+
+  const handleDeleteGmailFile = async (fileId: string) => {
+    const confirmed = window.confirm("Delete this Gmail attachment permanently?");
+    if (!confirmed) return;
+
+    try {
+      const res = await authFetch(`${API_URL}/api/mail/file/${fileId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(text || "Failed to delete Gmail file");
+      }
+
+      setGmailFiles((prev) => prev.filter((f) => f._id !== fileId));
+      if (gmailSummarizingId === fileId) setGmailSummarizingId(null);
+    } catch (error) {
+      console.error("Delete Gmail file error:", error);
+      alert("Could not delete Gmail attachment.");
+    }
+  };
+
   const getUrgencyColor = (u: string) =>
     ({
       high: "bg-red-100 text-red-800 border-red-200",
@@ -398,8 +543,18 @@ export default function Dashboard() {
   };
 
   // Filter documents based on search query and selected department
+  const currentUserId = profile?.id || (profile as any)?._id;
   const filteredDocuments = Array.isArray(documents)
     ? documents.filter((d) => {
+        const uploaderId =
+          typeof d.uploaded_by === "string"
+            ? d.uploaded_by
+            : d.uploaded_by?._id;
+        const isUploadedByCurrentUser =
+          !!currentUserId && !!uploaderId && uploaderId === currentUserId;
+
+        if (!isUploadedByCurrentUser) return false;
+
         const matchesSearch = searchQuery === "" || 
           d.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
           d.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -576,7 +731,20 @@ export default function Dashboard() {
                   <div>
                     <div className="flex justify-between mb-4">
                       <h3 className="font-semibold text-gray-800 group-hover:text-blue-600 transition line-clamp-1">{doc.title}</h3>
-                      <span className={`px-3 py-1 rounded-full text-xs border ${getUrgencyColor(doc.urgency)}`}>{doc.urgency}</span>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-3 py-1 rounded-full text-xs border ${getUrgencyColor(doc.urgency)}`}>{doc.urgency}</span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteDocument(doc._id);
+                          }}
+                          className="p-1 text-gray-400 hover:text-red-500 transition"
+                          title="Delete document"
+                          aria-label="Delete document"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                     <p className="text-sm text-gray-500 line-clamp-3 mb-4">{doc.summary}</p>
                   </div>
@@ -591,22 +759,24 @@ export default function Dashboard() {
                       )}
                     </div>
 
-                    {/* AI SUMMARY BUTTON */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation(); // Prevents navigating to details page
-                        if (doc.file_url) handleGenerateSummary(doc._id, doc.file_url);
-                      }}
-                      disabled={summarizingId === doc._id}
-                      className="w-full py-2 bg-blue-50 text-blue-700 rounded-xl text-xs font-bold hover:bg-blue-100 transition flex items-center justify-center gap-2 border border-blue-100"
-                    >
-                      {summarizingId === doc._id ? (
-                        <RefreshCw className="w-3 h-3 animate-spin" />
-                      ) : (
-                        <Sparkles className="w-3 h-3" />
-                      )}
-                      {summarizingId === doc._id ? "Summarizing..." : "AI Summary"}
-                    </button>
+                    <div>
+                      {/* AI SUMMARY BUTTON */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation(); // Prevents navigating to details page
+                          if (doc.file_url) handleGenerateSummary(doc._id, doc.file_url);
+                        }}
+                        disabled={summarizingId === doc._id}
+                        className="w-full py-2 bg-blue-50 text-blue-700 rounded-xl text-xs font-bold hover:bg-blue-100 transition flex items-center justify-center gap-2 border border-blue-100"
+                      >
+                        {summarizingId === doc._id ? (
+                          <RefreshCw className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-3 h-3" />
+                        )}
+                        {summarizingId === doc._id ? "Summarizing..." : "AI Summary"}
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -642,6 +812,7 @@ export default function Dashboard() {
                     const files = await loadGmailFiles();
                     const filesNeedingSummary = files.filter((f) => !f.summary);
                     await Promise.all(filesNeedingSummary.map(processGmailFileWithAI));
+                    await loadData();
                   }
                 } finally {
                   setGmailLoading(false);
@@ -674,7 +845,20 @@ export default function Dashboard() {
                 <div>
                     <div className="flex justify-between mb-4">
                       <h3 className="font-semibold text-gray-800 group-hover:text-indigo-600 transition line-clamp-1">{file.filename}</h3>
-                      <span className={`px-3 py-1 rounded-full text-xs border ${getUrgencyColor(file.urgency)}`}>{file.urgency}</span>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-3 py-1 rounded-full text-xs border ${getUrgencyColor(file.urgency)}`}>{file.urgency}</span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteGmailFile(file._id);
+                          }}
+                          className="p-1 text-gray-400 hover:text-red-500 transition"
+                          title="Delete attachment"
+                          aria-label="Delete attachment"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                     {/* {file.metadata?.subject && <p className="text-sm text-gray-500 line-clamp-2 mb-4">{file.metadata.subject}</p>} */}
                     

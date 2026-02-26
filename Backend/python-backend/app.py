@@ -80,8 +80,9 @@ def _resolve_department(predicted_label: str, probability: float):
     """Determines department based on label and confidence threshold."""
     if probability < CONFIDENCE_THRESHOLD:
         return None, "low_confidence_below_threshold"
-    
-    department = ROUTING_RULES.get(predicted_label)
+
+    normalized_label = (predicted_label or "").strip().lower()
+    department = ROUTING_RULES.get(normalized_label)
     if not department:
         return None, "unmapped_label"
     
