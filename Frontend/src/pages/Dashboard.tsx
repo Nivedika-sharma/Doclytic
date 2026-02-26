@@ -183,6 +183,23 @@ export default function Dashboard() {
     return aiRes.json();
   };
 
+  const runClassifierAndSummarizerNoMail = async (file: File): Promise<IngestResponse> => {
+    const aiFormData = new FormData();
+    aiFormData.append("file", file);
+
+    const aiRes = await fetch(`${AI_BASE_URL}/classify-summarize`, {
+      method: "POST",
+      body: aiFormData,
+    });
+
+    if (!aiRes.ok) {
+      const text = await aiRes.text().catch(() => "");
+      throw new Error(`AI classify-summarize failed: ${aiRes.status} ${text}`);
+    }
+
+    return aiRes.json();
+  };
+
   const ensureDepartmentsLoaded = async (): Promise<Department[]> => {
     if (departments.length > 0) return departments;
     const deptRes = await authFetch(`${API_URL}/api/departments`);
@@ -232,19 +249,31 @@ export default function Dashboard() {
 
       const blob = await res.blob();
       const uploadFile = new File([blob], file.filename, { type: blob.type });
-      const aiData = await runClassifierAndSummarizer(uploadFile);
+      const aiData = await runClassifierAndSummarizerNoMail(uploadFile);
       const generatedSummary = aiData.summary || "AI could not generate a summary.";
       const routedDepartment = getRoutedDepartmentName(aiData);
       const deptList = await ensureDepartmentsLoaded();
       const routedDepartmentId = getDepartmentIdByName(routedDepartment, deptList);
 
-      let linkedDocumentId: string | undefined;
-      if (routedDepartmentId) {
+      let linkedDocumentId: string | undefined = file.metadata?.linkedDocumentId;
+
+      if (linkedDocumentId) {
+        // Keep routed gmail documents up to date when file is re-processed.
+        await authFetch(`${API_URL}/api/documents/${linkedDocumentId}`, {
+          method: "PUT",
+          body: JSON.stringify({
+            summary: generatedSummary,
+            ...(routedDepartment ? { routed_department: routedDepartment } : {}),
+            ...(routedDepartmentId ? { department_id: routedDepartmentId } : {}),
+          }),
+        });
+      } else {
+        // Create a normal document entry for every gmail attachment so it can appear in department pages.
         const createFormData = new FormData();
         createFormData.append("file", uploadFile);
         createFormData.append("title", file.filename.replace(/\.[^/.]+$/, ""));
         createFormData.append("summary", generatedSummary);
-        createFormData.append("department_id", routedDepartmentId);
+        if (routedDepartmentId) createFormData.append("department_id", routedDepartmentId);
         if (routedDepartment) createFormData.append("routed_department", routedDepartment);
 
         const createDocRes = await authFetch(`${API_URL}/api/documents`, {
@@ -810,7 +839,9 @@ export default function Dashboard() {
                   })
                   if (resp.ok) {
                     const files = await loadGmailFiles();
-                    const filesNeedingSummary = files.filter((f) => !f.summary);
+                    const filesNeedingSummary = files.filter(
+                      (f) => !f.summary || !f.metadata?.linkedDocumentId
+                    );
                     await Promise.all(filesNeedingSummary.map(processGmailFileWithAI));
                     await loadData();
                   }
