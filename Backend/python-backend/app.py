@@ -14,7 +14,6 @@ from pymongo import DESCENDING, MongoClient
 from pymongo.uri_parser import parse_uri
 from dotenv import load_dotenv
 
-from config.departments import DEPARTMENT_EMAILS
 from config.routing_rules import ROUTING_RULES
 from summarizer import extract_text_from_file, generate_integrated_summary, generate_summary
 from utils.email_sender import send_document_email_bytes
@@ -103,6 +102,39 @@ def _ensure_db():
     mongo_db[DOC_FILES_COLLECTION].create_index([("metadata.route_to", 1), ("uploadDate", DESCENDING)])
 
 
+def _get_department_emails_from_db(department_name: str) -> List[str]:
+    """Resolve recipient emails for a routed department from MongoDB."""
+    _ensure_db()
+
+    department = mongo_db["departments"].find_one(
+        {"name": {"$regex": f"^{department_name.strip()}$", "$options": "i"}},
+        {"_id": 1},
+    )
+    if not department:
+        return []
+
+    cursor = mongo_db["users"].find(
+        {
+            "department_id": department["_id"],
+            "email": {"$exists": True, "$type": "string", "$ne": ""},
+        },
+        {"email": 1, "_id": 0},
+    )
+
+    emails = []
+    seen = set()
+    for row in cursor:
+        email = (row.get("email") or "").strip()
+        if not email:
+            continue
+        lower = email.lower()
+        if lower in seen:
+            continue
+        seen.add(lower)
+        emails.append(email)
+    return emails
+
+
 def route_and_send_email(
     predicted_label: str,
     filename: str,
@@ -115,9 +147,9 @@ def route_and_send_email(
     if department is None:
         return {"route_to": "manual_review", "emails": [], "note": note}
 
-    emails = DEPARTMENT_EMAILS.get(department)
+    emails = _get_department_emails_from_db(department)
     if not emails:
-        return {"route_to": "manual_review", "emails": [], "note": "no_emails_configured"}
+        return {"route_to": "manual_review", "emails": [], "note": "no_department_users_found"}
 
     subject = f"New Document Routed: {predicted_label}"
     body = (
