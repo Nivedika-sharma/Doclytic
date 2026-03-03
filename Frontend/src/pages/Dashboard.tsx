@@ -105,6 +105,10 @@ export default function Dashboard() {
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [latestIntegratedSummary, setLatestIntegratedSummary] = useState("");
+  const [latestSummaryTitles, setLatestSummaryTitles] = useState<string[]>([]);
+  const [latestSummaryLoading, setLatestSummaryLoading] = useState(false);
+  const [latestSummaryError, setLatestSummaryError] = useState<string | null>(null);
 
   const [summarizingId, setSummarizingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -167,6 +171,73 @@ export default function Dashboard() {
     }
     setLoading(false);
   };
+
+  const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
+    const sorted = [...docs].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    const latestFive = sorted.slice(0, 5);
+    const payloadDocuments = latestFive
+      .filter((d) => (d.summary || "").trim().length > 0)
+      .map((d) => ({
+        title: d.title || "Untitled",
+        summary: d.summary,
+      }));
+
+    setLatestSummaryTitles(latestFive.map((d) => d.title || "Untitled"));
+
+    if (payloadDocuments.length === 0) {
+      setLatestIntegratedSummary("");
+      setLatestSummaryError("No summaries available in the latest 5 documents.");
+      return;
+    }
+
+    setLatestSummaryLoading(true);
+    setLatestSummaryError(null);
+    try {
+      const res = await fetch(`${AI_BASE_URL}/summarize-integrated`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ documents: payloadDocuments }),
+      });
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`Failed to build integrated summary: ${res.status} ${text}`);
+      }
+
+      const data = await res.json();
+      setLatestIntegratedSummary(data.summary || "");
+    } catch (error) {
+      console.error("Integrated summary error:", error);
+      setLatestIntegratedSummary("");
+      setLatestSummaryError("Could not generate the latest 5 documents summary.");
+    } finally {
+      setLatestSummaryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!profile) return;
+
+    const currentUserId = profile?.id || (profile as any)?._id;
+    const ownedDocs = Array.isArray(documents)
+      ? documents.filter((d) => {
+          const uploaderId =
+            typeof d.uploaded_by === "string" ? d.uploaded_by : d.uploaded_by?._id;
+          return !!currentUserId && !!uploaderId && uploaderId === currentUserId;
+        })
+      : [];
+
+    if (ownedDocs.length === 0) {
+      setLatestIntegratedSummary("");
+      setLatestSummaryTitles([]);
+      setLatestSummaryError(null);
+      return;
+    }
+
+    loadLatestIntegratedSummary(ownedDocs);
+  }, [documents, profile]);
 
   const runClassifierAndSummarizer = async (file: File): Promise<IngestResponse> => {
     const aiFormData = new FormData();
@@ -763,7 +834,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-     
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
 
         {/* Total Documents */}
@@ -805,6 +875,27 @@ export default function Dashboard() {
           </div>
         </div>
 
+      </div>
+
+      <div className="mb-8 bg-white/90 backdrop-blur-lg p-6 rounded-2xl shadow-lg border border-white/50">
+        <div className="flex items-center gap-2 mb-3">
+          <Sparkles className="w-5 h-5 text-indigo-600" />
+          <h2 className="text-xl font-bold text-gray-800">Latest 5 Documents Summary</h2>
+        </div>
+        <p className="text-xs text-gray-500 mb-3">
+          {latestSummaryTitles.length > 0
+            ? `Based on: ${latestSummaryTitles.join(", ")}`
+            : "No recent documents available yet."}
+        </p>
+        {latestSummaryLoading ? (
+          <p className="text-sm text-gray-600">Generating integrated summary...</p>
+        ) : latestSummaryError ? (
+          <p className="text-sm text-red-600">{latestSummaryError}</p>
+        ) : (
+          <p className="text-sm text-gray-700 whitespace-pre-line">
+            {latestIntegratedSummary || "No integrated summary available."}
+          </p>
+        )}
       </div>
 
       

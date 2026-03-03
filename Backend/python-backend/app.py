@@ -49,6 +49,15 @@ class RouteUpdateRequest(BaseModel):
     note: Optional[str] = None
     decided_by: Optional[str] = None
 
+
+class SummaryItem(BaseModel):
+    title: str
+    summary: str
+
+
+class IntegratedSummaryRequest(BaseModel):
+    documents: List[SummaryItem]
+
 try:
     clf = joblib.load(MODEL_PATH)
     print(f"Classifier loaded from {MODEL_PATH}")
@@ -253,6 +262,17 @@ async def summarize_batch(files: List[UploadFile] = File(...)):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Integration error: {str(e)}")
+
+
+@app.post("/summarize-integrated")
+def summarize_integrated(payload: IntegratedSummaryRequest):
+    """Create one combined summary from pre-summarized documents."""
+    items = [
+        {"title": (d.title or "").strip(), "summary": (d.summary or "").strip()}
+        for d in payload.documents
+        if (d.title or "").strip() and (d.summary or "").strip()
+    ]
+    return {"summary": generate_integrated_summary(items)}
 
 
 @app.post("/classify-summarize")
