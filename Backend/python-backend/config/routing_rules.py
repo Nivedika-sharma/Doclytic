@@ -18,7 +18,12 @@ ROUTING_RULES = {
 
     "Finance": [
         "invoice",
+        "tax_invoice",
+        "proforma_invoice",
+        "vendor_invoice",
         "payment_receipt",
+        "payment_advice",
+        "payment_confirmation",
         "expense_report",
         "bank_statement",
         "tax_return",
@@ -29,24 +34,36 @@ ROUTING_RULES = {
         "budget_report",
         "audit_report",
         "salary_slip",
+        "salary_listing",
+        "payroll_statement",
+        "payroll_report",
         "reimbursement_claim",
         "credit_note",
         "debit_note",
         "payment_voucher",
-        "purchase_invoice"
+        "purchase_invoice",
+        "financial_report",
+        "cash_flow_statement",
+        "purchase_order"
     ],
 
     "HR": [
         "resume",
+        "profile",
+        "employee_profile",
         "cv",
         "job_application",
         "offer_letter",
+        "appraisal_letter",
         "appointment_letter",
         "joining_letter",
         "relieving_letter",
         "experience_letter",
         "promotion_letter",
         "salary_increment_letter",
+        "salary_slip",
+        "salary_listing",
+        "payroll_statement",
         "complaint_letter",
         "warning_letter",
         "termination_letter",
@@ -57,14 +74,22 @@ ROUTING_RULES = {
         "employee_handbook_acknowledgement",
         "company_policies",
         "code_of_conduct",
-        "nda_employee"
+        "nda_employee",
+        "hr_nda",
+        "nda",
+        "non_disclosure_agreement"
     ],
 
     "Legal": [
         "contract",
+        "contracts",
         "service_agreement",
         "non_disclosure_agreement",
         "nda",
+        "lease_agreement",
+        "legal_contract",
+        "vendor_contract",
+        "supplier_agreement",
         "memorandum_of_understanding",
         "partnership_agreement",
         "legal_notice",
@@ -84,6 +109,8 @@ ROUTING_RULES = {
         "tender_document",
         "vendor_contract",
         "supplier_agreement",
+        "service_agreement",
+        "contract",
         "goods_receipt_note",
         "delivery_challan",
         "material_request",
@@ -93,6 +120,7 @@ ROUTING_RULES = {
     ],
 
     "Operations": [
+        "report",
         "project_report",
         "operations_report",
         "daily_report",
@@ -106,7 +134,8 @@ ROUTING_RULES = {
         "quality_assurance_report",
         "logistics_report",
         "shipment_report",
-        "work_order"
+        "work_order",
+        "incident_ticket"
     ],
 
     "IT": [
