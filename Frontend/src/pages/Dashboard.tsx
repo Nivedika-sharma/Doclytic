@@ -1076,7 +1076,8 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
           ) : filteredDocuments.length === 0 ? (
             <div className="py-16 text-center"><FileText className="w-12 h-12 mx-auto text-gray-300 mb-4" /><p className="text-gray-500 text-lg">No documents found.</p></div>
           ) : (
-           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 max-h-[520px] overflow-y-auto pr-2">
+           <div className="max-h-[520px] overflow-y-auto overflow-x-visible pr-2">
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
   {filteredDocuments.map((doc) => {
     const badgeText = getDocumentDepartmentBadgeText(doc);
     const badgeStyle = getDocumentDepartmentBadgeStyle(doc);
@@ -1086,10 +1087,9 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
       
       <div
         onClick={() => navigate(`/document/${doc._id}`)}
-        className="group absolute top-0 left-0 w-full h-full bg-white rounded-2xl p-5 border border-gray-200 shadow-sm 
+        className="group absolute top-0 left-0 w-full min-h-[220px] bg-white rounded-2xl p-5 border border-gray-200 shadow-sm 
                    transition-all duration-300 ease-in-out cursor-pointer flex flex-col
-                   hover:w-[120%] hover:-left-[10%] hover:h-fit hover:min-h-[110%] 
-                   hover:scale-105 hover:z-[100] hover:shadow-2xl hover:border-blue-200"
+                   hover:h-auto hover:scale-105 hover:z-[200] hover:shadow-2xl hover:border-blue-200"
       >
         <div className="flex flex-col h-full">
           <div className="flex justify-between items-start mb-3">
@@ -1118,7 +1118,7 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
               <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Quick Extract</span>
             </div>
             
-            <p className="text-sm text-gray-500 line-clamp-3 group-hover:line-clamp-none group-hover:text-xs transition-all duration-300 leading-relaxed">
+            <p className="text-sm text-gray-500 line-clamp-3 group-hover:line-clamp-none transition-all duration-300 leading-relaxed">
               {doc.summary}
             </p>
           </div>
@@ -1142,7 +1142,8 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
     </div>
     );
   })}
-</div>
+             </div>
+           </div>
           )}
         </div>
       {/* ================= GMAIL SECTION ================= */}
@@ -1199,7 +1200,8 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 max-h-[520px] overflow-y-auto pr-2">
+          <div className="max-h-[520px] overflow-y-auto overflow-x-visible pr-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
   {filteredDocuments.map((doc) => {
     const badgeText = getDocumentDepartmentBadgeText(doc);
     const badgeStyle = getDocumentDepartmentBadgeStyle(doc);
@@ -1210,10 +1212,9 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
 
       <div
         onClick={() => navigate(`/document/${doc._id}`)}
-        className="group absolute top-0 left-0 w-full h-full bg-white rounded-2xl p-5 border border-gray-200 shadow-sm 
+        className="group absolute top-0 left-0 w-full min-h-[220px] bg-white rounded-2xl p-5 border border-gray-200 shadow-sm 
                    transition-all duration-300 ease-in-out cursor-pointer flex flex-col
-                   hover:w-[120%] hover:-left-[10%] hover:h-fit hover:min-h-[110%] 
-                   hover:scale-105 hover:z-[100] hover:shadow-2xl hover:border-blue-200"
+                   hover:h-auto hover:scale-105 hover:z-[200] hover:shadow-2xl hover:border-blue-200"
       >
         <div className="flex flex-col h-full">
           <div className="flex justify-between items-start mb-3">
@@ -1242,7 +1243,7 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
               <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Quick Extract</span>
             </div>
             
-            <p className="text-sm text-gray-500 line-clamp-3 group-hover:line-clamp-none group-hover:text-xs transition-all duration-300 leading-relaxed">
+            <p className="text-sm text-gray-500 line-clamp-3 group-hover:line-clamp-none transition-all duration-300 leading-relaxed">
               {doc.summary}
             </p>
           </div>
@@ -1266,7 +1267,8 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
     </div>
     );
   })}
-</div>
+            </div>
+          </div>
           )}
         </div>
       </div>
