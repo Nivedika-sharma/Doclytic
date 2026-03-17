@@ -52,6 +52,7 @@ interface DocumentWithDetails {
   } | null;
   department_id: string;
   routed_department?: string;
+  routed_departments?: string[];
   uploaded_by?: string | { _id?: string };
   department?: Department;
   createdAt: string;
@@ -826,6 +827,37 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
     return { backgroundColor: "#e2e8f015", color: "#475569" };
   };
 
+  const getDocumentRoutedDepartments = (doc: DocumentWithDetails) => {
+    const direct = Array.isArray(doc.routed_departments) ? doc.routed_departments : [];
+    const normalized = direct.map((name) => String(name || "").trim()).filter(Boolean);
+    const fallback = (doc.routed_department || doc.department?.name || "").trim();
+    if (normalized.length === 0 && fallback) normalized.push(fallback);
+
+    const unique: string[] = [];
+    const seen = new Set<string>();
+    normalized.forEach((name) => {
+      const key = name.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      unique.push(name);
+    });
+
+    return unique;
+  };
+
+  const getDocumentDepartmentBadgeText = (doc: DocumentWithDetails) => {
+    const routed = getDocumentRoutedDepartments(doc);
+    return routed.length > 0 ? routed.join(" / ") : "";
+  };
+
+  const getDocumentDepartmentBadgeStyle = (doc: DocumentWithDetails) => {
+    if (doc.department?.color) {
+      return { backgroundColor: `${doc.department.color}15`, color: doc.department.color };
+    }
+    const routed = getDocumentRoutedDepartments(doc);
+    return getDepartmentBadgeStyle(routed[0]);
+  };
+
   const getPriorityColor = (level?: string) =>
     ({
       Critical: "bg-rose-100 text-rose-800 border-rose-200",
@@ -1044,8 +1076,12 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
           ) : filteredDocuments.length === 0 ? (
             <div className="py-16 text-center"><FileText className="w-12 h-12 mx-auto text-gray-300 mb-4" /><p className="text-gray-500 text-lg">No documents found.</p></div>
           ) : (
-           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-  {filteredDocuments.map((doc) => (
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 max-h-[520px] overflow-y-auto pr-2">
+  {filteredDocuments.map((doc) => {
+    const badgeText = getDocumentDepartmentBadgeText(doc);
+    const badgeStyle = getDocumentDepartmentBadgeStyle(doc);
+
+    return (
     <div key={doc._id} className="relative h-[220px] w-full"> 
       
       <div
@@ -1092,19 +1128,20 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
               <Clock className="w-3 h-3" />
               {new Date(doc.createdAt).toLocaleDateString()}
             </span>
-            {doc.department && (
+            {badgeText && (
               <span 
                 className="px-2 py-0.5 rounded-md font-medium" 
-                style={{ backgroundColor: `${doc.department.color}15`, color: doc.department.color }}
+                style={badgeStyle}
               >
-                {doc.department.name}
+                {badgeText}
               </span>
             )}
           </div>
         </div>
       </div>
     </div>
-  ))}
+    );
+  })}
 </div>
           )}
         </div>
@@ -1162,8 +1199,12 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-  {filteredDocuments.map((doc) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 max-h-[520px] overflow-y-auto pr-2">
+  {filteredDocuments.map((doc) => {
+    const badgeText = getDocumentDepartmentBadgeText(doc);
+    const badgeStyle = getDocumentDepartmentBadgeStyle(doc);
+
+    return (
 
     <div key={doc._id} className="relative h-[220px] w-full"> 
 
@@ -1211,19 +1252,20 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
               <Clock className="w-3 h-3" />
               {new Date(doc.createdAt).toLocaleDateString()}
             </span>
-            {doc.department && (
+            {badgeText && (
               <span 
                 className="px-2 py-0.5 rounded-md font-medium" 
-                style={{ backgroundColor: `${doc.department.color}15`, color: doc.department.color }}
+                style={badgeStyle}
               >
-                {doc.department.name}
+                {badgeText}
               </span>
             )}
           </div>
         </div>
       </div>
     </div>
-  ))}
+    );
+  })}
 </div>
           )}
         </div>
