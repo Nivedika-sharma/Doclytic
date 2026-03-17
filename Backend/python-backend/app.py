@@ -1,11 +1,13 @@
+# backend/python-backend/app.py
+
 import os
 import re
 import csv
 import threading
 import logging
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
-
+from typing import Dict,List, Optional
+from dateutil import parser
 import joblib
 import numpy as np
 import pandas as pd
@@ -22,8 +24,12 @@ from dotenv import load_dotenv
 
 from config.routing_rules import ROUTING_RULES
 from priority_service.services.scoring import compute_priority
-from summarizer import extract_text_from_file, generate_integrated_summary, generate_summary
+from summarizer import extract_text_from_file, generate_integrated_summary, generate_summary, generate_detailed_summary, extract_deadline_with_ai
 from utils.email_sender import send_document_email_bytes
+
+import tempfile
+from services.rag_service import create_rag_index, ask_question
+from datetime import datetime, timedelta, timezone
 
 app = FastAPI(title="Document Intelligence API - Integrated IDMS")
 logger = logging.getLogger("idms.routing")
@@ -66,6 +72,10 @@ MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "test").strip()
 DOC_BUCKET_NAME = os.getenv(
     "PYTHON_DOC_BUCKET_NAME", "pythonDocuments").strip()
 DOC_FILES_COLLECTION = f"{DOC_BUCKET_NAME}.files"
+
+active_indexes = {}
+class ChatRequest(BaseModel):
+    question: str
 
 mongo_client: Optional[MongoClient] = None
 mongo_db = None
@@ -674,26 +684,6 @@ def _extract_sender_category(text: str) -> str:
             return category
     return "unknown"
 
-
-def _extract_selected_deadline(text: str) -> str | None:
-    lowered = (text or "").lower()
-    patterns = [
-        r"(?:due by|deadline[:\s]*|respond by|submit by)\s*(\d{4}-\d{2}-\d{2})",
-        r"(?:due by|deadline[:\s]*|respond by|submit by)\s*(\d{2}/\d{2}/\d{4})",
-        r"(?:on or before)\s*(\d{4}-\d{2}-\d{2})",
-        r"(?:on or before)\s*(\d{2}/\d{2}/\d{4})",
-    ]
-    for pattern in patterns:
-        match = re.search(pattern, lowered)
-        if match:
-            value = match.group(1)
-            if "/" in value:
-                dd, mm, yyyy = value.split("/")
-                return f"{yyyy}-{mm}-{dd}"
-            return value
-    return None
-
-
 def _extract_urgency_indicators(text: str) -> List[str]:
     lowered = (text or "").lower()
     markers = [
@@ -717,10 +707,13 @@ def extract_priority_metadata(extracted_text: str, predicted_label: str) -> dict
             "category": _extract_sender_category(extracted_text),
         },
         "document_type": (predicted_label or "").strip().lower().replace(" ", "_"),
-        "selected_deadline": _extract_selected_deadline(extracted_text),
+        
+        # --- CALL THE GEMINI AI EXTRACTION ---
+        "selected_deadline": extract_deadline_with_ai(extracted_text, default_days=14),
+        
         "urgency_indicators": _extract_urgency_indicators(extracted_text),
-        "extraction_model_version": "rule-v1",
-        "extraction_confidence": 0.6,
+        "extraction_model_version": "gemini-deadline-v1",
+        "extraction_confidence": 0.95,
     }
 
 
@@ -887,6 +880,7 @@ def route_and_store(
     routing_decision: Dict[str, object],
     probability: float,
     summary: str,
+    selected_deadline: str = None,
 ) -> dict:
     """Store file + summary + classification metadata in MongoDB GridFS."""
     auto_departments = routing_decision.get("auto_route_departments", [])
@@ -1232,6 +1226,7 @@ async def ingest_and_route(file: UploadFile = File(...)):
             routing_decision=prediction,
             probability=probability,
             summary=summary,
+            selected_deadline=extracted_metadata.get("selected_deadline")
         )
 
         return {
@@ -1281,7 +1276,9 @@ def list_documents(route_to: Optional[str] = None, limit: int = 50):
     try:
         _ensure_db()
         safe_limit = max(1, min(limit, 200))
-        query = {}
+
+        query = {"metadata.hidden_from_calendar": {"$ne": True}}
+        
         if route_to:
             query["metadata.route_to"] = {
                 "$regex": f"^{route_to.strip()}$", "$options": "i"}
@@ -1303,6 +1300,7 @@ def list_documents(route_to: Optional[str] = None, limit: int = 50):
                     "classification": d.get("metadata", {}).get("classification"),
                     "summary": d.get("metadata", {}).get("summary"),
                     "content_type": d.get("metadata", {}).get("content_type"),
+                    "selected_deadline": d.get("metadata", {}).get("selected_deadline"),
                 }
                 for d in docs
             ],
@@ -1447,7 +1445,79 @@ def update_document_route(document_id: str, payload: RouteUpdateRequest):
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
+@app.get("/documents/{document_id}/detailed-summary")
+def get_detailed_summary(document_id: str):
+    """Dedicated endpoint for Detailed Analysis, 100% independent of RAG chat."""
+    try:
+        _ensure_db()
+        oid = ObjectId(document_id)
+        d = mongo_db[DOC_FILES_COLLECTION].find_one({"_id": oid})
+        if not d:
+            return JSONResponse({"message": "Document not found"}, status_code=404)
 
+        grid_out = doc_bucket.open_download_stream(oid)
+        file_bytes = grid_out.read()
+        filename = d.get("filename", "document.pdf")
+        
+        # Grab the text and generate the isolated summary
+        text = extract_text_from_file(file_bytes, filename)
+        if not text or text.strip() == "":
+            return {"summary": "Could not extract text for analysis."}
+            
+        summary = generate_detailed_summary(text)
+        return {"summary": summary}
+        
+    except InvalidId:
+        return JSONResponse({"message": "Invalid document id"}, status_code=400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+@app.post("/documents/{document_id}/chat")
+def chat_with_document(document_id: str, payload: ChatRequest):
+    """Answers questions about a specific document stored in MongoDB GridFS."""
+    try:
+        _ensure_db()
+        oid = ObjectId(document_id)
+        
+        d = mongo_db[DOC_FILES_COLLECTION].find_one({"_id": oid})
+        if not d:
+            return JSONResponse({"message": "Document not found"}, status_code=404)
+
+        # 1. Create the index if it doesn't exist
+        if document_id not in active_indexes:
+            grid_out = doc_bucket.open_download_stream(oid)
+            file_bytes = grid_out.read()
+            
+            original_filename = d.get("filename", f"{document_id}.pdf")
+            ext = f".{original_filename.split('.')[-1]}" if "." in original_filename else ".pdf"
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_file:
+                temp_file.write(file_bytes)
+                temp_path = temp_file.name
+
+            try:
+                active_indexes[document_id] = create_rag_index(temp_path)
+            finally:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+
+        # 2. Ask the question (FIXED: Only passing vector_store and question)
+        vector_store = active_indexes[document_id]
+        answer = ask_question(vector_store, payload.question)
+        return {"answer": answer}
+        
+    except InvalidId:
+        return JSONResponse({"message": "Invalid document id"}, status_code=400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {"status": "error", "message": "AI services are currently unavailable. Please try again in a minute."}, 
+            status_code=503
+        )
+            
 @app.get("/documents/{document_id}/download")
 def download_document(document_id: str):
     try:
@@ -1472,6 +1542,28 @@ def download_document(document_id: str):
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
+@app.delete("/documents/{document_id}")
+def delete_document_hard(document_id: str):
+    """Feature 1: Hard delete from GridFS (Triggered by Dashboard)"""
+    try:
+        _ensure_db()
+        doc_bucket.delete(ObjectId(document_id))
+        return {"status": "deleted"}
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+@app.patch("/documents/{document_id}/hide")
+def hide_document_from_calendar(document_id: str):
+    """Feature 2: Hide from calendar without deleting the actual file"""
+    try:
+        _ensure_db()
+        mongo_db[DOC_FILES_COLLECTION].update_one(
+            {"_id": ObjectId(document_id)},
+            {"$set": {"metadata.hidden_from_calendar": True}}
+        )
+        return {"status": "hidden"}
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
 if __name__ == "__main__":
     import uvicorn

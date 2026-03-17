@@ -20,6 +20,7 @@ import {
 import DashboardLayout from "../components/DashboardLayout";
 import { useAuth } from "../contexts/AuthContext";
 import { triggerTabPulse } from "../utils/tabPulse";
+import { fetchIntegratedSummary } from "../api/summarizerAPI";
 
 interface Department {
   _id: string;
@@ -51,7 +52,6 @@ interface DocumentWithDetails {
   } | null;
   department_id: string;
   routed_department?: string;
-  routed_departments?: string[];
   uploaded_by?: string | { _id?: string };
   department?: Department;
   createdAt: string;
@@ -72,11 +72,6 @@ interface GmailFile {
   };
   summary?: string;
   urgency?: "high" | "medium" | "low";
-  priority?: {
-    priority_score?: number;
-    priority_level?: "Low" | "Medium" | "High" | "Critical";
-  } | null;
-  detectedDepartment?: string;
 }
 
 interface IngestResponse {
@@ -84,7 +79,6 @@ interface IngestResponse {
   classification?: {
     label: string;
     confidence: number;
-    department_predictions?: Array<{ department: string; score: number }>;
   };
   extraction?: {
     sender?: { name?: string | null; category?: string };
@@ -110,17 +104,8 @@ interface IngestResponse {
     engine_version?: string;
   };
   actions?: {
-    email?: {
-      route_to?: string;
-      routed_departments?: string[];
-      manual_review_departments?: string[];
-    };
-    storage?: {
-      route_to?: string;
-      stored_id?: string;
-      routed_departments?: string[];
-      manual_review_departments?: string[];
-    };
+    email?: { route_to?: string };
+    storage?: { route_to?: string; stored_id?: string };
   };
 }
 
@@ -133,7 +118,6 @@ export async function authFetch(url: string, options: RequestInit = {}) {
 
   const headers: Record<string, string> = {};
 
-  // Only set JSON header if body is NOT FormData
   if (!(options.body instanceof FormData)) {
     headers["Content-Type"] = "application/json";
   }
@@ -175,7 +159,6 @@ export default function Dashboard() {
   const { profile, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  // ✅ Check authentication and redirect if needed
   useEffect(() => {
     if (authLoading) {
       console.log("⏳ Auth still loading...");
@@ -196,7 +179,6 @@ export default function Dashboard() {
     }
   }, [profile, authLoading, navigate]);
 
-  // ✅ Load data when profile is available
   useEffect(() => {
     if (profile) {
       console.log("✅ Loading dashboard data...");
@@ -226,46 +208,36 @@ export default function Dashboard() {
     setLoading(false);
   };
 
-  const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
+const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
     const sorted = [...docs].sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
-    const latestFive = sorted.slice(0, 5);
-    const payloadDocuments = latestFive
+  
+    const latestFour = sorted.slice(0, 4);
+    const payloadDocuments = latestFour
       .filter((d) => (d.summary || "").trim().length > 0)
       .map((d) => ({
         title: d.title || "Untitled",
         summary: d.summary,
       }));
 
-    setLatestSummaryTitles(latestFive.map((d) => d.title || "Untitled"));
+    setLatestSummaryTitles(latestFour.map((d) => d.title || "Untitled"));
 
     if (payloadDocuments.length === 0) {
       setLatestIntegratedSummary("");
-      setLatestSummaryError("No summaries available in the latest 5 documents.");
+      setLatestSummaryError("No summaries available in the latest 4 documents.");
       return;
     }
 
     setLatestSummaryLoading(true);
     setLatestSummaryError(null);
     try {
-      const res = await fetch(`${AI_BASE_URL}/summarize-integrated`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ documents: payloadDocuments }),
-      });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`Failed to build integrated summary: ${res.status} ${text}`);
-      }
-
-      const data = await res.json();
+      const data = await fetchIntegratedSummary(payloadDocuments);
       setLatestIntegratedSummary(data.summary || "");
     } catch (error) {
       console.error("Integrated summary error:", error);
       setLatestIntegratedSummary("");
-      setLatestSummaryError("Could not generate the latest 5 documents summary.");
+      setLatestSummaryError("Could not generate the latest 4 documents summary.");
     } finally {
       setLatestSummaryLoading(false);
     }
@@ -343,26 +315,9 @@ export default function Dashboard() {
     return routedName;
   };
 
-  const getRoutedDepartments = (aiData: IngestResponse): string[] => {
-    const fromEmail = aiData.actions?.email?.routed_departments || [];
-    const fromStorage = aiData.actions?.storage?.routed_departments || [];
-    const merged = Array.from(new Set([...fromEmail, ...fromStorage].filter(Boolean)));
-    return merged;
-  };
-
   const isManualReviewRequired = (aiData: IngestResponse): boolean => {
     const routedName = (aiData.actions?.email?.route_to || aiData.actions?.storage?.route_to || "").toLowerCase();
-    const manualCandidates = [
-      ...(aiData.actions?.email?.manual_review_departments || []),
-      ...(aiData.actions?.storage?.manual_review_departments || []),
-    ];
-    return routedName === "manual_review" || manualCandidates.length > 0;
-  };
-
-  const getManualReviewDepartments = (aiData: IngestResponse): string[] => {
-    const fromEmail = aiData.actions?.email?.manual_review_departments || [];
-    const fromStorage = aiData.actions?.storage?.manual_review_departments || [];
-    return Array.from(new Set([...fromEmail, ...fromStorage].filter(Boolean)));
+    return routedName === "manual_review";
   };
 
   const getSuggestedDepartmentFromLabel = (label?: string): string | null => {
@@ -426,11 +381,8 @@ export default function Dashboard() {
       const aiData = await runClassifierAndSummarizerNoMail(uploadFile);
       const generatedSummary = aiData.summary || "AI could not generate a summary.";
       const routedDepartment = getRoutedDepartmentName(aiData);
-      const routedDepartments = getRoutedDepartments(aiData);
       const needsManualReview = isManualReviewRequired(aiData);
-      const manualReviewDepartments = getManualReviewDepartments(aiData);
-      const suggestedDepartment =
-        manualReviewDepartments[0] || getSuggestedDepartmentFromLabel(aiData.classification?.label);
+      const suggestedDepartment = getSuggestedDepartmentFromLabel(aiData.classification?.label);
       const priorityLevel = aiData.priority?.priority_level || "Medium";
       const urgencyFromPriority =
         priorityLevel === "Critical" || priorityLevel === "High"
@@ -450,9 +402,8 @@ export default function Dashboard() {
           body: JSON.stringify({
             summary: generatedSummary,
             urgency: urgencyFromPriority,
-            ...((needsManualReview && !routedDepartment) ? { routed_department: "manual_review", department_id: null } : {}),
+            ...(needsManualReview ? { routed_department: "manual_review", department_id: null } : {}),
             ...(routedDepartment ? { routed_department: routedDepartment } : {}),
-            ...(routedDepartments.length > 0 ? { routed_departments: routedDepartments } : {}),
             ...(routedDepartmentId ? { department_id: routedDepartmentId } : {}),
             ...(aiData.extraction ? { extraction: aiData.extraction } : {}),
             ...(aiData.priority ? { priority: aiData.priority } : {}),
@@ -463,15 +414,8 @@ export default function Dashboard() {
                       required: true,
                       status: "pending",
                       suggested_department: suggestedDepartment,
-                      suggested_departments: manualReviewDepartments,
                       predicted_label: aiData.classification?.label || "",
                       confidence: aiData.classification?.confidence ?? 0,
-                      confidence_by_department: Object.fromEntries(
-                        (aiData.classification?.department_predictions || []).map((item) => [
-                          item.department,
-                          item.score,
-                        ])
-                      ),
                     },
                   },
                 }
@@ -482,13 +426,11 @@ export default function Dashboard() {
         // Create a normal document entry for every gmail attachment so it can appear in department pages.
         const createFormData = new FormData();
         createFormData.append("file", uploadFile);
-        const cleanedFilename = getDisplayFilename(file.filename);
-        createFormData.append("title", cleanedFilename.replace(/\.[^/.]+$/, ""));
+        createFormData.append("title", file.filename.replace(/\.[^/.]+$/, ""));
         createFormData.append("summary", generatedSummary);
-        if (needsManualReview && !routedDepartment) createFormData.append("routed_department", "manual_review");
+        if (needsManualReview) createFormData.append("routed_department", "manual_review");
         if (routedDepartmentId) createFormData.append("department_id", routedDepartmentId);
         if (routedDepartment) createFormData.append("routed_department", routedDepartment);
-        if (routedDepartments.length > 0) createFormData.append("routed_departments", JSON.stringify(routedDepartments));
 
         const createDocRes = await authFetch(`${API_URL}/api/documents`, {
           method: "POST",
@@ -505,7 +447,7 @@ export default function Dashboard() {
                 urgency: urgencyFromPriority,
                 ...(aiData.extraction ? { extraction: aiData.extraction } : {}),
                 ...(aiData.priority ? { priority: aiData.priority } : {}),
-                ...((needsManualReview && !routedDepartment) ? { department_id: null } : {}),
+                ...(needsManualReview ? { department_id: null } : {}),
                 ...(needsManualReview
                   ? {
                       metadata: {
@@ -513,20 +455,12 @@ export default function Dashboard() {
                           required: true,
                           status: "pending",
                           suggested_department: suggestedDepartment,
-                          suggested_departments: manualReviewDepartments,
                           predicted_label: aiData.classification?.label || "",
                           confidence: aiData.classification?.confidence ?? 0,
-                          confidence_by_department: Object.fromEntries(
-                            (aiData.classification?.department_predictions || []).map((item) => [
-                              item.department,
-                              item.score,
-                            ])
-                          ),
                         },
                       },
                     }
                   : {}),
-                ...(routedDepartments.length > 0 ? { routed_departments: routedDepartments } : {}),
               }),
             });
           }
@@ -558,8 +492,6 @@ export default function Dashboard() {
             ? {
                 ...f,
                 summary: generatedSummary,
-                priority: aiData.priority || f.priority || null,
-                detectedDepartment: routedDepartment || f.detectedDepartment,
                 metadata: {
                   ...(f.metadata || ({} as GmailFile["metadata"])),
                   routedDepartment: routedDepartment || undefined,
@@ -574,7 +506,6 @@ export default function Dashboard() {
     }
   };
 
-// --- NEW: DIRECT UPLOAD HANDLER ---
   const handleDirectUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -582,92 +513,84 @@ export default function Dashboard() {
     setLoading(true);
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("title", file.name.replace(/\.[^/.]+$/, "")); // Auto-title from filename
-    formData.append("summary", "No summary yet. Click the here to generate one!");
+    formData.append("title", file.name.replace(/\.[^/.]+$/, "")); 
+
+    formData.append("summary", "Processing your document..."); 
 
     try {
       const res = await authFetch(`${API_URL}/api/documents`, {
         method: "POST",
-        body: formData, // Browser sets boundary automatically
+        body: formData, 
       });
 
       if (res.ok) {
         const uploadedDoc = await res.json();
-        let routedDepartmentToNavigate: string | null = null;
 
-        try {
-          const aiData = await runClassifierAndSummarizer(file);
-          const generatedSummary = aiData.summary || "AI could not generate a summary.";
-          const routedDepartment = getRoutedDepartmentName(aiData);
-          const routedDepartments = getRoutedDepartments(aiData);
-          const needsManualReview = isManualReviewRequired(aiData);
-      const manualReviewDepartments = getManualReviewDepartments(aiData);
-      const suggestedDepartment =
-        manualReviewDepartments[0] || getSuggestedDepartmentFromLabel(aiData.classification?.label);
-      const pythonFileId = aiData.actions?.storage?.stored_id;
-      routedDepartmentToNavigate = routedDepartment;
-      const deptList = await ensureDepartmentsLoaded();
-      const routedDepartmentId = getDepartmentIdByName(routedDepartment, deptList);
-      const priorityLevel = aiData.priority?.priority_level || "Medium";
-      const urgencyFromPriority =
-        priorityLevel === "Critical" || priorityLevel === "High"
-          ? "high"
-          : priorityLevel === "Medium"
-          ? "medium"
-          : "low";
+        await loadData(); 
 
-          await authFetch(`${API_URL}/api/documents/${uploadedDoc._id}`, {
-        method: "PUT",
-        body: JSON.stringify({
-          summary: generatedSummary,
-          urgency: urgencyFromPriority,
-          ...((needsManualReview && !routedDepartment) ? { routed_department: "manual_review", department_id: null } : {}),
-          ...(routedDepartmentId ? { department_id: routedDepartmentId } : {}),
-          ...(routedDepartment ? { routed_department: routedDepartment } : {}),
-          ...(routedDepartments.length > 0 ? { routed_departments: routedDepartments } : {}),
-          ...(pythonFileId ? { python_file_id: pythonFileId } : {}),
-          ...(aiData.extraction ? { extraction: aiData.extraction } : {}),
-          ...(aiData.priority ? { priority: aiData.priority } : {}),
-          ...(needsManualReview
-            ? {
-                metadata: {
-                  manual_review: {
-                    required: true,
-                    status: "pending",
-                    suggested_department: suggestedDepartment,
-                    suggested_departments: manualReviewDepartments,
-                    predicted_label: aiData.classification?.label || "",
-                    confidence: aiData.classification?.confidence ?? 0,
-                    confidence_by_department: Object.fromEntries(
-                      (aiData.classification?.department_predictions || []).map((item) => [
-                        item.department,
-                        item.score,
-                      ])
-                    ),
-                  },
-                },
-              }
-            : {}),
-        }),
-          });
+        (async () => {
+          try {
+            const aiData = await runClassifierAndSummarizer(file);
+            const generatedSummary = aiData.summary || "AI could not generate a summary.";
+            const routedDepartment = getRoutedDepartmentName(aiData);
+            const needsManualReview = isManualReviewRequired(aiData);
+            const suggestedDepartment = getSuggestedDepartmentFromLabel(aiData.classification?.label);
+            const pythonFileId = aiData.actions?.storage?.stored_id;
+            
+            const deptList = await ensureDepartmentsLoaded();
+            const routedDepartmentId = getDepartmentIdByName(routedDepartment, deptList);
+            const priorityLevel = aiData.priority?.priority_level || "Medium";
+            const urgencyFromPriority =
+              priorityLevel === "Critical" || priorityLevel === "High"
+                ? "high"
+                : priorityLevel === "Medium"
+                ? "medium"
+                : "low";
 
-          pulseRouteTab(needsManualReview ? "manual_review" : routedDepartment);
-        } catch (aiErr) {
-          console.error("Auto classifier+summarizer failed after upload:", aiErr);
-        }
+            await authFetch(`${API_URL}/api/documents/${uploadedDoc._id}`, {
+              method: "PUT",
+              body: JSON.stringify({
+                summary: generatedSummary,
+                urgency: urgencyFromPriority,
+                ...(needsManualReview ? { routed_department: "manual_review", department_id: null } : {}),
+                ...(routedDepartmentId ? { department_id: routedDepartmentId } : {}),
+                ...(routedDepartment ? { routed_department: routedDepartment } : {}),
+                ...(pythonFileId ? { python_file_id: pythonFileId } : {}),
+                ...(aiData.extraction ? { extraction: aiData.extraction } : {}),
+                ...(aiData.priority ? { priority: aiData.priority } : {}),
+                ...(needsManualReview
+                  ? {
+                      metadata: {
+                        manual_review: {
+                          required: true,
+                          status: "pending",
+                          suggested_department: suggestedDepartment,
+                          predicted_label: aiData.classification?.label || "",
+                          confidence: aiData.classification?.confidence ?? 0,
+                        },
+                      },
+                    }
+                  : {}),
+              }),
+            });
 
-        await loadData(); // Refresh list immediately
-        if (routedDepartmentToNavigate) {
-          navigate(`/department/${toDepartmentSlug(routedDepartmentToNavigate)}`);
-        }
+            pulseRouteTab(needsManualReview ? "manual_review" : routedDepartment);
+            
+            await loadData(); 
+          } catch (aiErr) {
+            console.error("Auto classifier+summarizer failed after upload:", aiErr);
+          }
+        })();
+
       } else {
         alert("Upload failed");
       }
     } catch (err) {
       console.error("Upload error:", err);
     } finally {
+      // 4. INSTANT UNLOCK: Drop the loading state before the AI finishes
       setLoading(false);
-      if (fileInputRef.current) fileInputRef.current.value = ""; // Reset input
+      if (fileInputRef.current) fileInputRef.current.value = ""; 
     }
   };
 
@@ -774,41 +697,8 @@ export default function Dashboard() {
       const files = await res.json();
       console.log("📧 Gmail files loaded:", files);
       const normalizedFiles = Array.isArray(files) ? files : files.data || [];
-      const enrichedFiles = await Promise.all(
-        normalizedFiles.map(async (file: GmailFile) => {
-          const linkedDocumentId = file.metadata?.linkedDocumentId;
-          if (!linkedDocumentId) return file;
-
-          try {
-            const docRes = await authFetch(`${API_URL}/api/documents/${linkedDocumentId}`);
-            if (!docRes.ok) return file;
-            const linkedDoc = await docRes.json();
-
-            const detectedDepartment = (
-              linkedDoc?.routed_department ||
-              linkedDoc?.department?.name ||
-              file.metadata?.routedDepartment ||
-              ""
-            ).trim();
-
-            return {
-              ...file,
-              priority: linkedDoc?.priority || file.priority || null,
-              detectedDepartment: detectedDepartment || file.detectedDepartment,
-              metadata: {
-                ...(file.metadata || {}),
-                routedDepartment:
-                  detectedDepartment || file.metadata?.routedDepartment || undefined,
-              },
-            };
-          } catch {
-            return file;
-          }
-        })
-      );
-
-      setGmailFiles(enrichedFiles);
-      return enrichedFiles;
+      setGmailFiles(normalizedFiles);
+      return normalizedFiles;
     } catch (e) {
       console.error("Gmail fetch error:", e);
       setGmailFiles([]);
@@ -844,6 +734,9 @@ export default function Dashboard() {
     const confirmed = window.confirm("Delete this document permanently?");
     if (!confirmed) return;
 
+    // Grab the document BEFORE we delete it from state so we can get its Python ID
+    const docToDelete = documents.find((d) => d._id === docId);
+
     try {
       const res = await authFetch(`${API_URL}/api/documents/${docId}`, {
         method: "DELETE",
@@ -853,6 +746,14 @@ export default function Dashboard() {
         const text = await res.text().catch(() => "");
         throw new Error(text || "Failed to delete document");
       }
+
+      // --- NEW FEATURE 1: Sync Delete to Python Calendar ---
+      if (docToDelete?.python_file_id) {
+        fetch(`http://127.0.0.1:8000/documents/${docToDelete.python_file_id}`, {
+          method: "DELETE",
+        }).catch(err => console.error("Failed to sync delete with Calendar:", err));
+      }
+      // ----------------------------------------------------
 
       setDocuments((prev) => prev.filter((d) => d._id !== docId));
       if (summarizingId === docId) setSummarizingId(null);
@@ -883,15 +784,23 @@ export default function Dashboard() {
     }
   };
 
-  const getGmailDepartmentLabel = (file: GmailFile): string => {
-    const routed = (file.detectedDepartment || file.metadata?.routedDepartment || "").trim();
-    return routed || "Unrouted";
+  const getUrgencyColor = (u: string) =>
+    ({
+      high: "bg-red-100 text-red-800 border-red-200",
+      medium: "bg-yellow-100 text-yellow-800 border-yellow-200",
+      low: "bg-green-100 text-green-800 border-green-200",
+      unscored: "bg-slate-100 text-slate-700 border-slate-200",
+    }[u] || "");
+
+  const getGmailUrgencyLabel = (file: GmailFile): "high" | "medium" | "low" | "unscored" => {
+    const raw = (file.urgency || "").toLowerCase();
+    if (raw === "high" || raw === "medium" || raw === "low") return raw;
+    return "unscored";
   };
 
-  const getGmailPriorityScore = (file: GmailFile): string => {
-    const score = file.priority?.priority_score;
-    if (typeof score !== "number" || Number.isNaN(score)) return "N/A";
-    return score.toFixed(1);
+  const getGmailDepartmentLabel = (file: GmailFile): string => {
+    const routed = (file.metadata?.routedDepartment || "").trim();
+    return routed || "Unrouted";
   };
 
   const getDepartmentBadgeStyle = (departmentName?: string) => {
@@ -924,22 +833,11 @@ export default function Dashboard() {
       Medium: "bg-amber-100 text-amber-800 border-amber-200",
       Low: "bg-emerald-100 text-emerald-800 border-emerald-200",
     }[level || ""] || "bg-slate-100 text-slate-700 border-slate-200");
-  const getDepartmentBadgeText = (doc: DocumentWithDetails) => {
-    const multi = (doc.routed_departments || [])
-      .map((d) => String(d || "").trim())
-      .filter(Boolean);
-    if (multi.length > 0) return multi.join(" / ");
-    if (doc.routed_department) return doc.routed_department;
-    if (doc.department?.name) return doc.department.name;
-    return "";
-  };
 
   const getDepartmentIcon = (name: string) => {
     const icons: any = { HR: Users, Finance: DollarSign, Legal: Scale, Admin: Briefcase, Procurement: ShoppingCart };
     return icons[name] || Briefcase;
   };
-
-  const getDisplayFilename = (name: string) => name.replace(/^\d{10,}[-_]+/, "");
 
   // Filter documents based on search query and selected department
   const currentUserId = profile?.id || (profile as any)?._id;
@@ -964,9 +862,6 @@ export default function Dashboard() {
         return matchesSearch && matchesDepartment;
       })
     : [];
-  const sortedDocuments = [...filteredDocuments].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
 
   // Filter Gmail files based on search query
   const filteredGmailFiles = Array.isArray(gmailFiles)
@@ -975,15 +870,11 @@ export default function Dashboard() {
         const query = searchQuery.toLowerCase();
         return (
           file.filename.toLowerCase().includes(query) ||
-          getDisplayFilename(file.filename).toLowerCase().includes(query) ||
           file.metadata?.subject?.toLowerCase().includes(query) ||
           file.metadata?.from?.toLowerCase().includes(query)
         );
       })
     : [];
-  const sortedGmailFiles = [...filteredGmailFiles].sort(
-    (a, b) => new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime()
-  );
 
   // Show loading while auth is initializing
   if (authLoading) {
@@ -1101,19 +992,22 @@ export default function Dashboard() {
       <div className="mb-8 bg-white/90 backdrop-blur-lg p-6 rounded-2xl shadow-lg border border-white/50">
         <div className="flex items-center gap-2 mb-3">
           <Sparkles className="w-5 h-5 text-indigo-600" />
-          <h2 className="text-xl font-bold text-gray-800">Latest 5 Documents Summary</h2>
+          <h2 className="text-xl font-bold text-gray-800">Latest Document Insights</h2>
         </div>
+        
         <p className="text-xs text-gray-500 mb-3">
-          {latestSummaryTitles.length > 0
-            ? `Based on: ${latestSummaryTitles.join(", ")}`
-            : "No recent documents available yet."}
+          Synthesized from your 4 most recent documents
         </p>
+
         {latestSummaryLoading ? (
-          <p className="text-sm text-gray-600">Generating integrated summary...</p>
+          <div className="flex items-center gap-2">
+            <RefreshCw className="w-3 h-3 animate-spin text-gray-400" />
+            <p className="text-sm text-gray-600">Analyzing latest activity...</p>
+          </div>
         ) : latestSummaryError ? (
           <p className="text-sm text-red-600">{latestSummaryError}</p>
         ) : (
-          <p className="text-sm text-gray-700 whitespace-pre-line">
+          <p className="text-sm text-gray-700 leading-relaxed">
             {latestIntegratedSummary || "No integrated summary available."}
           </p>
         )}
@@ -1147,73 +1041,71 @@ export default function Dashboard() {
 
           {loading ? (
             <div className="py-16 text-center text-gray-500">Loading...</div>
-          ) : sortedDocuments.length === 0 ? (
+          ) : filteredDocuments.length === 0 ? (
             <div className="py-16 text-center"><FileText className="w-12 h-12 mx-auto text-gray-300 mb-4" /><p className="text-gray-500 text-lg">No documents found.</p></div>
           ) : (
-            <div className="h-[36.5rem] overflow-y-auto pr-1">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {sortedDocuments.map((doc) => (
-                  <div
-                    key={doc._id}
-                    onClick={() => navigate(`/document/${doc._id}`)}
-                    className="group h-[17.5rem] bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex justify-between mb-4">
-                        <h3 className="font-semibold text-gray-800 group-hover:text-blue-600 transition line-clamp-1">{getDisplayFilename(doc.title)}</h3>
-                        <div className="flex items-center gap-2">
-                          <span className={`px-3 py-1 rounded-full text-xs border ${getPriorityColor(doc.priority?.priority_level)}`}>
-                            {doc.priority?.priority_level || "Unscored"}
-                          </span>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteDocument(doc._id);
-                            }}
-                            className="p-1 text-gray-400 hover:text-red-500 transition"
-                            title="Delete document"
-                            aria-label="Delete document"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                      <p className="text-sm text-gray-500 line-clamp-3 mb-4">{doc.summary}</p>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between text-xs text-gray-400 items-center mb-4">
-                        <span>{new Date(doc.createdAt).toLocaleDateString()}</span>
-                        {getDepartmentBadgeText(doc) && (
-                          <span className="px-3 py-1 rounded-full text-xs" style={{ backgroundColor: `${doc.department?.color || "#64748B"}15`, color: doc.department?.color || "#334155" }}>
-                            {getDepartmentBadgeText(doc)}
-                          </span>
-                        )}
-                      </div>
-
-                      <div>
-                        {/* AI SUMMARY BUTTON */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation(); // Prevents navigating to details page
-                            if (doc.file_url) handleGenerateSummary(doc._id, doc.file_url);
-                          }}
-                          disabled={summarizingId === doc._id}
-                          className="w-full py-2 bg-blue-50 text-blue-700 rounded-xl text-xs font-bold hover:bg-blue-100 transition flex items-center justify-center gap-2 border border-blue-100"
-                        >
-                          {summarizingId === doc._id ? (
-                            <RefreshCw className="w-3 h-3 animate-spin" />
-                          ) : (
-                            <Sparkles className="w-3 h-3" />
-                          )}
-                          {summarizingId === doc._id ? "Summarizing..." : "AI Summary"}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+  {filteredDocuments.map((doc) => (
+    <div key={doc._id} className="relative h-[220px] w-full"> 
+      
+      <div
+        onClick={() => navigate(`/document/${doc._id}`)}
+        className="group absolute top-0 left-0 w-full h-full bg-white rounded-2xl p-5 border border-gray-200 shadow-sm 
+                   transition-all duration-300 ease-in-out cursor-pointer flex flex-col
+                   hover:w-[120%] hover:-left-[10%] hover:h-fit hover:min-h-[110%] 
+                   hover:scale-105 hover:z-[100] hover:shadow-2xl hover:border-blue-200"
+      >
+        <div className="flex flex-col h-full">
+          <div className="flex justify-between items-start mb-3">
+            <h3 className="font-bold text-gray-800 group-hover:text-blue-600 transition line-clamp-1 pr-2">
+              {doc.title}
+            </h3>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border uppercase ${getPriorityColor(doc.priority?.priority_level)}`}>
+                {doc.priority?.priority_level || "Low"}
+              </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteDocument(doc._id);
+                }}
+                className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
             </div>
+          </div>
+          
+          <div className="flex-grow overflow-hidden group-hover:overflow-visible">
+            <div className="flex items-center gap-1 mb-1.5">
+              <Sparkles className="w-3 h-3 text-blue-500" />
+              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Quick Extract</span>
+            </div>
+            
+            <p className="text-sm text-gray-500 line-clamp-3 group-hover:line-clamp-none group-hover:text-xs transition-all duration-300 leading-relaxed">
+              {doc.summary}
+            </p>
+          </div>
+
+          <div className="mt-2 pt-3 border-t border-gray-50 flex justify-between items-center text-[10px] text-gray-400 shrink-0">
+            <span className="flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              {new Date(doc.createdAt).toLocaleDateString()}
+            </span>
+            {doc.department && (
+              <span 
+                className="px-2 py-0.5 rounded-md font-medium" 
+                style={{ backgroundColor: `${doc.department.color}15`, color: doc.department.color }}
+              >
+                {doc.department.name}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  ))}
+</div>
           )}
         </div>
       {/* ================= GMAIL SECTION ================= */}
@@ -1262,7 +1154,7 @@ export default function Dashboard() {
 
         {gmailLoading ? (
           <div className="py-16 text-center text-gray-500">Loading...</div>
-        ) : sortedGmailFiles.length === 0 ? (
+        ) : filteredGmailFiles.length === 0 ? (
           <div className="py-16 text-center">
             <Mail className="w-12 h-12 mx-auto text-gray-300 mb-4" />
             <p className="text-gray-500 text-lg">
@@ -1270,77 +1162,69 @@ export default function Dashboard() {
             </p>
           </div>
         ) : (
-          <div className="h-[36.5rem] overflow-y-auto pr-1">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {sortedGmailFiles.map((file) => (
-                <div
-                  key={file._id}
-                  onClick={() => navigate(`/gmail-document/${file._id}`)}
-                  className="group h-[17.5rem] bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between"
-                >
-                  <div>
-                      <div className="flex justify-between mb-4">
-                        <h3 className="font-semibold text-gray-800 group-hover:text-indigo-600 transition line-clamp-1">{getDisplayFilename(file.filename)}</h3>
-                        <div className="flex items-center gap-2">
-                          <span className={`px-3 py-1 rounded-full text-xs border ${getPriorityColor(file.priority?.priority_level)}`}>
-                            {file.priority?.priority_level || "Unscored"}
-                          </span>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteGmailFile(file._id);
-                            }}
-                            className="p-1 text-gray-400 hover:text-red-500 transition"
-                            title="Delete attachment"
-                            aria-label="Delete attachment"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                      {/* {file.metadata?.subject && <p className="text-sm text-gray-500 line-clamp-2 mb-4">{file.metadata.subject}</p>} */}
-                      
-                      {file.summary && (
-                        <p className="text-sm text-gray-500 line-clamp-3 mb-4">
-                          {/* <Sparkles className="w-3 h-3 inline mr-1 text-purple-500"/>  */}
-                          {file.summary}
-                        </p>
-                      )}
-                    </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+  {filteredDocuments.map((doc) => (
 
-                  <div>
-                      <div className="flex justify-between text-xs text-gray-400 items-center mb-4">
-                        <span>{new Date(file.uploadDate).toLocaleDateString()}</span>
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="px-3 py-1 rounded-full text-xs"
-                            style={getDepartmentBadgeStyle(getGmailDepartmentLabel(file))}
-                          >
-                            {getGmailDepartmentLabel(file)}
-                          </span>
-                        </div>
-                      </div>
+    <div key={doc._id} className="relative h-[220px] w-full"> 
 
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleGenerateGmailSummary(file._id, file.filename);
-                        }}
-                        disabled={gmailSummarizingId === file._id}
-                        className="w-full py-2 bg-indigo-50 text-indigo-700 rounded-xl text-xs font-bold hover:bg-indigo-100 transition flex items-center justify-center gap-2 border border-indigo-100"
-                      >
-                        {gmailSummarizingId === file._id ? (
-                          <RefreshCw className="w-3 h-3 animate-spin" />
-                        ) : (
-                          <Sparkles className="w-3 h-3" />
-                        )}
-                        {gmailSummarizingId === file._id ? "Summarizing..." : "AI Summary"}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+      <div
+        onClick={() => navigate(`/document/${doc._id}`)}
+        className="group absolute top-0 left-0 w-full h-full bg-white rounded-2xl p-5 border border-gray-200 shadow-sm 
+                   transition-all duration-300 ease-in-out cursor-pointer flex flex-col
+                   hover:w-[120%] hover:-left-[10%] hover:h-fit hover:min-h-[110%] 
+                   hover:scale-105 hover:z-[100] hover:shadow-2xl hover:border-blue-200"
+      >
+        <div className="flex flex-col h-full">
+          <div className="flex justify-between items-start mb-3">
+            <h3 className="font-bold text-gray-800 group-hover:text-blue-600 transition line-clamp-1 pr-2">
+              {doc.title}
+            </h3>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border uppercase ${getPriorityColor(doc.priority?.priority_level)}`}>
+                {doc.priority?.priority_level || "Low"}
+              </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteDocument(doc._id);
+                }}
+                className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
             </div>
+          </div>
+          
+          <div className="flex-grow overflow-hidden group-hover:overflow-visible">
+            <div className="flex items-center gap-1 mb-1.5">
+              <Sparkles className="w-3 h-3 text-blue-500" />
+              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Quick Extract</span>
+            </div>
+            
+            <p className="text-sm text-gray-500 line-clamp-3 group-hover:line-clamp-none group-hover:text-xs transition-all duration-300 leading-relaxed">
+              {doc.summary}
+            </p>
+          </div>
+
+          <div className="mt-2 pt-3 border-t border-gray-50 flex justify-between items-center text-[10px] text-gray-400 shrink-0">
+            <span className="flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              {new Date(doc.createdAt).toLocaleDateString()}
+            </span>
+            {doc.department && (
+              <span 
+                className="px-2 py-0.5 rounded-md font-medium" 
+                style={{ backgroundColor: `${doc.department.color}15`, color: doc.department.color }}
+              >
+                {doc.department.name}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  ))}
+</div>
           )}
         </div>
       </div>

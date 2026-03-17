@@ -1,6 +1,6 @@
 # sends email.
 
-# app.py
+# main.py
 import os
 import shutil
 import joblib

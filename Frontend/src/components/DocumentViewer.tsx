@@ -1,4 +1,5 @@
 // src/components/DocumentViewer.tsx
+
 import { useState, useEffect } from "react";
 import { FileText, File, Download, ZoomIn, ZoomOut } from "lucide-react";
 import mammoth from "mammoth";

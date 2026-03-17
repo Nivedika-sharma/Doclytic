@@ -18,7 +18,12 @@ export interface BatchSummaryResponse {
     error?: string;
 }
 
-// API Call 1
+export interface IntegratedSummaryResponse {
+    summary: string;
+    error?: string;
+}
+
+// API Call 1 single doc summarization
 export const fetchSingleSummary = async (file: File): Promise<SingleSummaryResponse> => {
     const formData = new FormData();
     formData.append("file", file);
@@ -32,7 +37,7 @@ export const fetchSingleSummary = async (file: File): Promise<SingleSummaryRespo
     return response.json();
 };
 
-// API Call 2
+// API Call 2 simple multidoc summarization
 export const fetchBatchSummary = async (files: File[]): Promise<BatchSummaryResponse> => {
     const formData = new FormData();
     files.forEach(file => formData.append("files", file));
@@ -43,5 +48,19 @@ export const fetchBatchSummary = async (files: File[]): Promise<BatchSummaryResp
     });
 
     if (!response.ok) throw new Error("Failed to process batch");
+    return response.json();
+};
+
+// API Call 3 gemini multi-doc summarization
+export const fetchIntegratedSummary = async (
+    documents: { title: string; summary: string }[]
+): Promise<IntegratedSummaryResponse> => {
+    const response = await fetch(`${AI_BASE_URL}/summarize-integrated`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ documents }),
+    });
+
+    if (!response.ok) throw new Error("Failed to generate integrated summary");
     return response.json();
 };

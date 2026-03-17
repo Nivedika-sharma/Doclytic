@@ -30,7 +30,7 @@ interface IngestResponse {
   };
 }
 
-// --- UNIVERSAL AUTH FETCH (fixes 401 for Google + email login) ---
+// --- UNIVERSAL AUTH FETCH ---
 async function authFetch(url: string, options: RequestInit = {}) {
   const token = localStorage.getItem("token");
 
@@ -74,56 +74,60 @@ export default function DocumentUpload() {
     try {
       const res = await authFetch(`${API_URL}/api/documents`, {
         method: "POST",
-        body: formData, // IMPORTANT: do NOT add content-type manually
+        body: formData, 
       });
 
       if (res.ok) {
         const uploadedDoc = await res.json();
 
-        try {
-          const aiFormData = new FormData();
-          aiFormData.append("file", file);
-          const aiRes = await fetch(`${AI_BASE_URL}/ingest`, {
-            method: "POST",
-            body: aiFormData,
-          });
+        setTimeout(() => {
+          (async () => {
+            try {
+              const aiFormData = new FormData();
+              aiFormData.append("file", file);
+              const aiRes = await fetch(`${AI_BASE_URL}/ingest`, {
+                method: "POST",
+                body: aiFormData,
+              });
 
-          if (aiRes.ok) {
-            const aiData = (await aiRes.json()) as IngestResponse;
-            const priorityLevel = aiData.priority?.priority_level || "Medium";
-            const urgencyFromPriority =
-              priorityLevel === "Critical" || priorityLevel === "High"
-                ? "high"
-                : priorityLevel === "Medium"
-                ? "medium"
-                : "low";
+              if (aiRes.ok) {
+                const aiData = (await aiRes.json()) as IngestResponse;
+                const priorityLevel = aiData.priority?.priority_level || "Medium";
+                const urgencyFromPriority =
+                  priorityLevel === "Critical" || priorityLevel === "High"
+                    ? "high"
+                    : priorityLevel === "Medium"
+                    ? "medium"
+                    : "low";
 
-            await authFetch(`${API_URL}/api/documents/${uploadedDoc._id}`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                summary: aiData.summary || summary,
-                urgency: urgencyFromPriority,
-                ...(aiData.extraction ? { extraction: aiData.extraction } : {}),
-                ...(aiData.priority ? { priority: aiData.priority } : {}),
-              }),
-            });
-          }
-        } catch (aiErr) {
-          console.error("Post-upload priority processing failed:", aiErr);
-        }
+                await authFetch(`${API_URL}/api/documents/${uploadedDoc._id}`, {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    summary: aiData.summary || summary,
+                    urgency: urgencyFromPriority,
+                    ...(aiData.extraction ? { extraction: aiData.extraction } : {}),
+                    ...(aiData.priority ? { priority: aiData.priority } : {}),
+                  }),
+                });
+              }
+            } catch (aiErr) {
+              console.error("Background AI processing failed:", aiErr);
+            }
+          })();
+        }, 0);
 
-        alert("Document uploaded successfully!");
+        setLoading(false);
         navigate("/dashboard");
+
       } else {
         const data = await res.json();
         alert(`Upload failed: ${data.message}`);
+        setLoading(false);
       }
-
     } catch (err) {
       console.error("Upload error:", err);
       alert("Error uploading document.");
-    } finally {
       setLoading(false);
     }
   };
@@ -164,7 +168,7 @@ export default function DocumentUpload() {
           disabled={loading}
         >
           <Upload className="w-4 h-4" />
-          <span>{loading ? "Uploading..." : "Upload Document"}</span>
+          <span>{loading ? "Uploading to system..." : "Upload Document"}</span>
         </button>
       </div>
     </DashboardLayout>
