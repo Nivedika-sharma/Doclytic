@@ -5,6 +5,7 @@ import re
 import csv
 import threading
 import logging
+import json
 from datetime import datetime, timezone
 from typing import Dict,List, Optional
 from dateutil import parser
@@ -50,6 +51,7 @@ app.add_middleware(
 
 BASE_DIR = os.path.dirname(__file__)
 MODEL_PATH = os.path.join(BASE_DIR, "models", "doc_clf.joblib")
+KEYWORD_DICT_PATH = os.path.join(BASE_DIR, "models", "keyword_dict.json")
 DATASET_PATH = os.path.join(BASE_DIR, "dataset_pipeline", "output", "dataset.csv")
 FEEDBACK_DATASET_PATH = os.path.join(
     BASE_DIR, "dataset_pipeline", "output", "manual_review_feedback.csv"
@@ -125,6 +127,15 @@ except Exception as e:
         f"Warning: classifier not loaded. Routing falls back to manual review. Error: {e}")
     clf = None
 
+try:
+    if os.path.exists(KEYWORD_DICT_PATH):
+        with open(KEYWORD_DICT_PATH, "r", encoding="utf-8") as f:
+            KEYWORD_DICT = json.load(f)
+    else:
+        KEYWORD_DICT = None
+except Exception:
+    KEYWORD_DICT = None
+
 
 def _is_st_classifier_ready() -> bool:
     return clf is not None and hasattr(clf, "encode")
@@ -151,7 +162,7 @@ def _filename_to_features(filename: str) -> str:
 
 
 def _build_classification_input(extracted_text: str, filename: str = "") -> str:
-    return preprocess_for_model(extracted_text or "", filename or "")
+    return preprocess_for_model(extracted_text or "", filename or "", keyword_dict=KEYWORD_DICT)
 
 
 def _build_label_department_map(rules: Dict[str, List[str]]) -> Dict[str, List[str]]:
@@ -284,7 +295,7 @@ def _load_feedback_memory():
 
     embeddings = None
     if rows and _is_st_classifier_ready():
-        texts = [preprocess_for_model(r["text"]) for r in rows]
+        texts = [preprocess_for_model(r["text"], keyword_dict=KEYWORD_DICT) for r in rows]
         embeddings = clf.encode(texts, batch_size=64)
         if embeddings.size > 0:
             norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
@@ -319,7 +330,7 @@ def _load_negative_feedback_memory():
 
     embeddings = None
     if rows and _is_st_classifier_ready():
-        texts = [preprocess_for_model(r["text"]) for r in rows]
+        texts = [preprocess_for_model(r["text"], keyword_dict=KEYWORD_DICT) for r in rows]
         embeddings = clf.encode(texts, batch_size=64)
         if embeddings.size > 0:
             norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
@@ -357,7 +368,7 @@ def _append_feedback_sample(
         )
 
     if _is_st_classifier_ready():
-        emb = clf.encode([preprocess_for_model(cleaned_text)], batch_size=1)
+        emb = clf.encode([preprocess_for_model(cleaned_text, keyword_dict=KEYWORD_DICT)], batch_size=1)
         if emb.size > 0:
             norm = np.linalg.norm(emb, axis=1, keepdims=True)
             norm[norm == 0] = 1.0
@@ -405,7 +416,7 @@ def _append_negative_feedback_sample(text: str, wrong_label: str, source_doc_id:
         )
 
     if _is_st_classifier_ready():
-        emb = clf.encode([preprocess_for_model(cleaned_text)], batch_size=1)
+        emb = clf.encode([preprocess_for_model(cleaned_text, keyword_dict=KEYWORD_DICT)], batch_size=1)
         if emb.size > 0:
             norm = np.linalg.norm(emb, axis=1, keepdims=True)
             norm[norm == 0] = 1.0
