@@ -30,6 +30,7 @@ from utils.email_sender import send_document_email_bytes
 import tempfile
 from services.rag_service import create_rag_index, ask_question
 from datetime import datetime, timedelta, timezone
+from preprocessing import preprocess_for_model
 
 app = FastAPI(title="Document Intelligence API - Integrated IDMS")
 logger = logging.getLogger("idms.routing")
@@ -61,6 +62,9 @@ AUTO_ROUTE_DEPT_THRESHOLD = 0.40
 RELEVANT_DEPT_THRESHOLD = 0.15
 MANUAL_REVIEW_MIN_SCORE = 0.20
 TOP_DEPARTMENT_CANDIDATES = 2
+FORCE_AUTO_ROUTE_CONFIDENCE = 0.50
+LABEL_CONFIDENCE_AUTO_ROUTE = 0.50
+PREDICTION_MIN_CONFIDENCE = 0.65
 FEEDBACK_SIMILARITY_THRESHOLD = float(os.getenv("FEEDBACK_SIMILARITY_THRESHOLD", "0.82"))
 NEGATIVE_FEEDBACK_SIMILARITY_THRESHOLD = float(
     os.getenv("NEGATIVE_FEEDBACK_SIMILARITY_THRESHOLD", "0.80")
@@ -147,17 +151,7 @@ def _filename_to_features(filename: str) -> str:
 
 
 def _build_classification_input(extracted_text: str, filename: str = "") -> str:
-    body = (extracted_text or "").strip()
-    fname_features = _filename_to_features(filename)
-    if not fname_features:
-        return body
-
-    # Repeat filename cues to make short but high-signal names more influential.
-    return (
-        f"filename cues {fname_features} "
-        f"filename cues {fname_features} "
-        f"{body}"
-    ).strip()
+    return preprocess_for_model(extracted_text or "", filename or "")
 
 
 def _build_label_department_map(rules: Dict[str, List[str]]) -> Dict[str, List[str]]:
@@ -171,6 +165,21 @@ def _build_label_department_map(rules: Dict[str, List[str]]) -> Dict[str, List[s
             if department not in label_map[normalized]:
                 label_map[normalized].append(department)
     return label_map
+
+
+def _label_to_departments(label: str) -> List[str]:
+    raw = (label or "").strip().lower()
+    if not raw:
+        return []
+
+    if "__" in raw:
+        dept_key, suffix = raw.split("__", 1)
+        dept = DEPARTMENT_NAME_LOOKUP.get(_normalize_department_name(dept_key))
+        if dept:
+            return [dept]
+        raw = suffix
+
+    return LABEL_TO_DEPARTMENTS.get(raw) or GENERIC_LABEL_TO_DEPARTMENTS.get(raw) or []
 
 
 LABEL_TO_DEPARTMENTS = _build_label_department_map(ROUTING_RULES)
@@ -275,7 +284,7 @@ def _load_feedback_memory():
 
     embeddings = None
     if rows and _is_st_classifier_ready():
-        texts = [r["text"] for r in rows]
+        texts = [preprocess_for_model(r["text"]) for r in rows]
         embeddings = clf.encode(texts, batch_size=64)
         if embeddings.size > 0:
             norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
@@ -310,7 +319,7 @@ def _load_negative_feedback_memory():
 
     embeddings = None
     if rows and _is_st_classifier_ready():
-        texts = [r["text"] for r in rows]
+        texts = [preprocess_for_model(r["text"]) for r in rows]
         embeddings = clf.encode(texts, batch_size=64)
         if embeddings.size > 0:
             norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
@@ -348,7 +357,7 @@ def _append_feedback_sample(
         )
 
     if _is_st_classifier_ready():
-        emb = clf.encode([cleaned_text], batch_size=1)
+        emb = clf.encode([preprocess_for_model(cleaned_text)], batch_size=1)
         if emb.size > 0:
             norm = np.linalg.norm(emb, axis=1, keepdims=True)
             norm[norm == 0] = 1.0
@@ -396,7 +405,7 @@ def _append_negative_feedback_sample(text: str, wrong_label: str, source_doc_id:
         )
 
     if _is_st_classifier_ready():
-        emb = clf.encode([cleaned_text], batch_size=1)
+        emb = clf.encode([preprocess_for_model(cleaned_text)], batch_size=1)
         if emb.size > 0:
             norm = np.linalg.norm(emb, axis=1, keepdims=True)
             norm[norm == 0] = 1.0
@@ -535,9 +544,7 @@ def _keyword_department_score_boost(classification_input: str) -> Dict[str, floa
 def _compute_department_scores(label_probs: Dict[str, float], classification_input: str = "") -> Dict[str, float]:
     department_scores: Dict[str, float] = {}
     for label, prob in label_probs.items():
-        departments = LABEL_TO_DEPARTMENTS.get(label) or GENERIC_LABEL_TO_DEPARTMENTS.get(
-            label
-        )
+        departments = _label_to_departments(label)
         if not departments:
             continue
 
@@ -570,6 +577,23 @@ def _to_sorted_department_predictions(department_scores: Dict[str, float]) -> Li
 
 def _resolve_department_routing(department_scores: Dict[str, float]) -> Dict[str, object]:
     predictions_all = _to_sorted_department_predictions(department_scores)
+    if predictions_all and predictions_all[0]["score"] >= FORCE_AUTO_ROUTE_CONFIDENCE:
+        top = predictions_all[0]
+        return {
+            "primary_route": top["department"],
+            "relevant_departments": [top],
+            "auto_route_departments": [top],
+            "manual_review_departments": [],
+            "department_predictions": predictions_all,
+            "note": "auto_routed_high_confidence",
+            "thresholds": {
+                "auto_route_department_threshold": AUTO_ROUTE_DEPT_THRESHOLD,
+                "relevant_department_threshold": RELEVANT_DEPT_THRESHOLD,
+                "manual_review_min_score": MANUAL_REVIEW_MIN_SCORE,
+                "single_label_confidence_threshold": CONFIDENCE_THRESHOLD,
+                "force_auto_route_confidence": FORCE_AUTO_ROUTE_CONFIDENCE,
+            },
+        }
     predictions = predictions_all[:TOP_DEPARTMENT_CANDIDATES]
     relevant = [p for p in predictions if p["score"] >= RELEVANT_DEPT_THRESHOLD]
     auto = [p for p in relevant if p["score"] >= AUTO_ROUTE_DEPT_THRESHOLD]
@@ -650,10 +674,14 @@ def classify_text(extracted_text: str, filename: str = ""):
         if feedback_pred:
             fb_label, fb_score = feedback_pred
             label_probs[fb_label] = max(float(label_probs.get(fb_label, 0.0)), float(fb_score))
+            if float(fb_score) < PREDICTION_MIN_CONFIDENCE:
+                return "uncertain", float(fb_score)
             return fb_label, float(fb_score)
 
         if label_probs:
             best = max(label_probs.items(), key=lambda item: item[1])
+            if float(best[1]) < PREDICTION_MIN_CONFIDENCE:
+                return "uncertain", float(best[1])
             return best[0], float(best[1])
 
         pred = clf.predict([clean_text])[0]
@@ -731,13 +759,41 @@ def predict_document(extracted_text: str, filename: str = "") -> Dict[str, objec
     predicted_label, label_confidence = classify_text(extracted_text, filename)
     label_probs = _get_label_probabilities(classification_input)
     label_probs = _apply_negative_feedback_penalty(classification_input, label_probs)
-    if predicted_label and predicted_label not in ("Unknown", "Error"):
+    if predicted_label == "uncertain":
+        label_probs = {}
+    if predicted_label and predicted_label not in ("Unknown", "Error", "uncertain"):
         label_probs[predicted_label] = max(
             float(label_probs.get(predicted_label, 0.0)), float(label_confidence)
         )
 
     department_scores = _compute_department_scores(label_probs, classification_input)
     routing = _resolve_department_routing(department_scores)
+
+    if (
+        predicted_label
+        and predicted_label not in ("Unknown", "Error", "uncertain")
+        and float(label_confidence) >= LABEL_CONFIDENCE_AUTO_ROUTE
+    ):
+        candidate_departments = _label_to_departments(predicted_label)
+        if candidate_departments:
+            primary = candidate_departments[0]
+            top = {"department": primary, "score": float(label_confidence)}
+            routing = {
+                "primary_route": primary,
+                "relevant_departments": [top],
+                "auto_route_departments": [top],
+                "manual_review_departments": [],
+                "department_predictions": _to_sorted_department_predictions(department_scores),
+                "note": "auto_routed_label_confidence",
+                "thresholds": {
+                    "auto_route_department_threshold": AUTO_ROUTE_DEPT_THRESHOLD,
+                    "relevant_department_threshold": RELEVANT_DEPT_THRESHOLD,
+                    "manual_review_min_score": MANUAL_REVIEW_MIN_SCORE,
+                    "single_label_confidence_threshold": CONFIDENCE_THRESHOLD,
+                    "force_auto_route_confidence": FORCE_AUTO_ROUTE_CONFIDENCE,
+                    "label_confidence_auto_route": LABEL_CONFIDENCE_AUTO_ROUTE,
+                },
+            }
 
     return {
         "label": predicted_label,

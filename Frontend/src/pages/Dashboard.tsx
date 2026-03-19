@@ -80,6 +80,7 @@ interface IngestResponse {
   classification?: {
     label: string;
     confidence: number;
+    department_predictions?: { department: string; score: number }[];
   };
   extraction?: {
     sender?: { name?: string | null; category?: string };
@@ -335,6 +336,12 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
     return suggestionMap[key] || null;
   };
 
+  const getSuggestedDepartmentFromAI = (aiData: IngestResponse): string | null => {
+    const topPrediction = aiData.classification?.department_predictions?.[0]?.department;
+    if (topPrediction && String(topPrediction).trim()) return topPrediction;
+    return getSuggestedDepartmentFromLabel(aiData.classification?.label);
+  };
+
   const getDepartmentIdByName = (
     departmentName: string | null,
     departmentList: Department[] = departments
@@ -383,7 +390,7 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
       const generatedSummary = aiData.summary || "AI could not generate a summary.";
       const routedDepartment = getRoutedDepartmentName(aiData);
       const needsManualReview = isManualReviewRequired(aiData);
-      const suggestedDepartment = getSuggestedDepartmentFromLabel(aiData.classification?.label);
+      const suggestedDepartment = getSuggestedDepartmentFromAI(aiData);
       const priorityLevel = aiData.priority?.priority_level || "Medium";
       const urgencyFromPriority =
         priorityLevel === "Critical" || priorityLevel === "High"
@@ -535,7 +542,7 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
             const generatedSummary = aiData.summary || "AI could not generate a summary.";
             const routedDepartment = getRoutedDepartmentName(aiData);
             const needsManualReview = isManualReviewRequired(aiData);
-            const suggestedDepartment = getSuggestedDepartmentFromLabel(aiData.classification?.label);
+            const suggestedDepartment = getSuggestedDepartmentFromAI(aiData);
             const pythonFileId = aiData.actions?.storage?.stored_id;
             
             const deptList = await ensureDepartmentsLoaded();
@@ -864,6 +871,8 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
       High: "bg-orange-100 text-orange-800 border-orange-200",
       Medium: "bg-amber-100 text-amber-800 border-amber-200",
       Low: "bg-emerald-100 text-emerald-800 border-emerald-200",
+      Processing: "bg-slate-100 text-slate-700 border-slate-200",
+      Unscored: "bg-slate-100 text-slate-700 border-slate-200",
     }[level || ""] || "bg-slate-100 text-slate-700 border-slate-200");
 
   const getDepartmentIcon = (name: string) => {
@@ -1079,7 +1088,10 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
            <div className="max-h-[520px] overflow-y-auto overflow-x-visible pr-2">
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
   {filteredDocuments.map((doc) => {
-    const badgeText = getDocumentDepartmentBadgeText(doc);
+    const isProcessing =
+      (doc.summary || "").trim().toLowerCase() === "processing your document...";
+    const priorityLabel = doc.priority?.priority_level || (isProcessing ? "Processing" : "Unscored");
+    const badgeText = isProcessing ? "" : getDocumentDepartmentBadgeText(doc);
     const badgeStyle = getDocumentDepartmentBadgeStyle(doc);
 
     return (
@@ -1097,8 +1109,8 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
               {doc.title}
             </h3>
             <div className="flex items-center gap-2 shrink-0">
-              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border uppercase ${getPriorityColor(doc.priority?.priority_level)}`}>
-                {doc.priority?.priority_level || "Low"}
+              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border uppercase ${getPriorityColor(priorityLabel)}`}>
+                {priorityLabel}
               </span>
               <button
                 onClick={(e) => {

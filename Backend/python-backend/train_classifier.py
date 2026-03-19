@@ -4,17 +4,16 @@ import joblib
 import numpy as np
 import pandas as pd
 
-from sklearn.metrics import accuracy_score, classification_report
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 
 from st_classifier import SentenceTransformerClassifier
+from preprocessing import preprocess_for_model
 
 
 TRAIN_CSV = "dataset_pipeline/output/train.csv"
 VAL_CSV = "dataset_pipeline/output/val.csv"
 
 MODEL_OUT = "models/doc_clf.joblib"
-
-SBERT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 os.makedirs("models", exist_ok=True)
 
@@ -37,7 +36,7 @@ def load_csv(path: str) -> pd.DataFrame:
 
 
 # ---------------------------
-# Training Pipeline
+# Training
 # ---------------------------
 def train():
     print("\n[1] Loading data...")
@@ -47,33 +46,51 @@ def train():
     print(f"Train size: {len(train_df)}")
     print(f"Val size: {len(val_df)}")
 
-    print("\n[2] Label distribution (train):")
+    print("\n[2] Label distribution:")
     print(train_df["label"].value_counts())
 
-    clf = SentenceTransformerClassifier(model_name=SBERT_MODEL)
+    clf = SentenceTransformerClassifier()
+
+    # ---------------------------
+    # Prepare inputs
+    # ---------------------------
+    train_texts = [preprocess_for_model(t) for t in train_df["text"]]
+    val_texts = [preprocess_for_model(t) for t in val_df["text"]]
 
     # ---------------------------
     # Encode
     # ---------------------------
     print("\n[3] Encoding train data...")
     start = time.time()
-    X_train = clf.encode(train_df["text"].tolist(), batch_size=64)
-    print(f"Train encoding done in {round(time.time() - start, 2)} sec")
+    X_train = clf.encode(train_texts)
+    print(f"Done in {round(time.time() - start, 2)} sec")
 
-    print("\n[4] Encoding validation data...")
+    print("\n[4] Encoding val data...")
     start = time.time()
-    X_val = clf.encode(val_df["text"].tolist(), batch_size=64)
-    print(f"Val encoding done in {round(time.time() - start, 2)} sec")
+    X_val = clf.encode(val_texts)
+    print(f"Done in {round(time.time() - start, 2)} sec")
 
-    # Optional: save embeddings for reuse
+    # Save embeddings (optional reuse)
     np.save("X_train.npy", X_train)
     np.save("X_val.npy", X_val)
 
     # ---------------------------
+    # Optional: Hard sample weighting (future use)
+    # ---------------------------
+    sample_weight = None
+    # Example placeholder:
+    # sample_weight = np.ones(len(train_df))
+    # sample_weight[hard_indices] = 2.0
+
+    # ---------------------------
     # Train
     # ---------------------------
-    print("\n[5] Training classifier...")
-    clf.fit_embeddings(X_train, train_df["label"].tolist())
+    print("\n[5] Training...")
+    clf.fit_embeddings(
+        X_train,
+        train_df["label"].tolist(),
+        sample_weight=sample_weight
+    )
 
     # ---------------------------
     # Predict
@@ -88,15 +105,24 @@ def train():
     # Evaluate
     # ---------------------------
     acc = accuracy_score(val_df["label"], preds)
-    print("\nValidation accuracy:", f"{acc:.4f}")
+
+    print("\nValidation Accuracy:", f"{acc:.4f}")
+    print("\nClassification Report:\n")
     print(classification_report(val_df["label"], preds, digits=4))
 
-    print("\nConfidence stats:")
+    print("\nConfidence Stats:")
     print("Avg confidence:", round(confidences.mean(), 4))
     print("Low confidence (<0.6):", int((confidences < 0.6).sum()))
 
     # ---------------------------
-    # Save errors
+    # Confusion Matrix
+    # ---------------------------
+    print("\nConfusion Matrix:")
+    cm = confusion_matrix(val_df["label"], preds, labels=clf.classes_)
+    print(cm)
+
+    # ---------------------------
+    # Save error analysis
     # ---------------------------
     print("\n[7] Saving error analysis...")
 
@@ -104,14 +130,12 @@ def train():
     errors["pred"] = preds
     errors["confidence"] = confidences
     errors = errors[errors["label"] != errors["pred"]]
-
     errors.to_csv("errors.csv", index=False)
 
     low_conf = val_df.copy()
     low_conf["pred"] = preds
     low_conf["confidence"] = confidences
     low_conf = low_conf[low_conf["confidence"] < 0.6]
-
     low_conf.to_csv("low_confidence.csv", index=False)
 
     print(f"Saved {len(errors)} misclassified samples")

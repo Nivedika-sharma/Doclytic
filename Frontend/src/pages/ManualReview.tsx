@@ -18,6 +18,7 @@ interface ManualReviewMetadata {
   decided_label?: string;
   confidence?: number;
   decided_department?: string;
+  confidence_by_department?: Record<string, number>;
 }
 
 interface DocumentItem {
@@ -111,6 +112,33 @@ export default function ManualReview() {
   const toDepartmentSlug = (departmentName: string) =>
     departmentName.trim().toLowerCase().replace(/\s+/g, "-");
 
+  const inferDepartmentFromPredictedLabel = (label?: string | null) => {
+    const normalized = normalizeLabel(label || "");
+    if (!normalized) return "";
+    const prefix = normalized.split("__")[0];
+    const map: Record<string, string> = {
+      legal: "Legal",
+      finance: "Finance",
+      hr: "HR",
+      procurement: "Procurement",
+      admin: "Admin",
+      operations: "Operations",
+    };
+    return map[prefix] || "";
+  };
+
+  const getSuggestedDepartmentFromReview = (review?: ManualReviewMetadata) => {
+    const explicit = (review?.suggested_department || "").trim();
+    if (explicit) return explicit;
+
+    const confidenceMap = review?.confidence_by_department || {};
+    const topFromScores = Object.entries(confidenceMap)
+      .sort((a, b) => (b[1] || 0) - (a[1] || 0))[0]?.[0];
+    if (topFromScores) return topFromScores;
+
+    return inferDepartmentFromPredictedLabel(review?.predicted_label);
+  };
+
   const getDeptIdByName = (name?: string | null, sourceDepartments: Department[] = departments) => {
     const wanted = normalizeName(name || "");
     if (!wanted) return "";
@@ -170,7 +198,7 @@ export default function ManualReview() {
     };
 
     departments.forEach((d) => pushUnique(d.name));
-    manualReviewDocs.forEach((doc) => pushUnique(doc.metadata?.manual_review?.suggested_department || ""));
+    manualReviewDocs.forEach((doc) => pushUnique(getSuggestedDepartmentFromReview(doc.metadata?.manual_review) || ""));
     FALLBACK_DEPARTMENT_NAMES.forEach((name) => pushUnique(name));
 
     return allNames.sort((a, b) => a.localeCompare(b));
@@ -206,7 +234,7 @@ export default function ManualReview() {
         const defaults: Record<string, string> = {};
         const defaultLabels: Record<string, string> = {};
         docs.forEach((doc) => {
-          const suggested = doc.metadata?.manual_review?.suggested_department || "";
+          const suggested = getSuggestedDepartmentFromReview(doc.metadata?.manual_review) || "";
           const currentDeptId = typeof doc.department_id === "string" ? doc.department_id : doc.department_id?._id || "";
           const currentDeptName =
             typeof doc.department_id === "object" ? doc.department_id?.name || "" : depts.find((d) => d._id === currentDeptId)?.name || "";
@@ -458,7 +486,7 @@ export default function ManualReview() {
           <div className="space-y-4">
             {manualReviewDocs.map((doc) => {
               const review = doc.metadata?.manual_review;
-              const suggested = review?.suggested_department || "No suggestion";
+              const suggested = getSuggestedDepartmentFromReview(review) || "No suggestion";
               const confidence = typeof review?.confidence === "number" ? `${(review.confidence * 100).toFixed(1)}%` : "N/A";
               const previouslyRoutedDepartments = Array.from(
                 new Set(
@@ -495,11 +523,11 @@ export default function ManualReview() {
                             Previously Routed: {previouslyRoutedText}
                           </span>
                         )}
-                        {review?.predicted_label && (
-                          <span className="px-2 py-1 rounded bg-gray-100 text-gray-700 border border-gray-200">
-                            Predicted Label: {review.predicted_label}
-                          </span>
-                        )}
+                      {(selectedLabelByDoc[doc._id] || review?.predicted_label) && (
+                        <span className="px-2 py-1 rounded bg-gray-100 text-gray-700 border border-gray-200">
+                          Label: {prettifyLabel(selectedLabelByDoc[doc._id] || review?.predicted_label)}
+                        </span>
+                      )}
                       </div>
                     </div>
 
@@ -524,7 +552,7 @@ export default function ManualReview() {
                         {departmentOptions.map((name) => (
                           <option key={name} value={name}>
                             {name}
-                            {normalizeName(review?.suggested_department) === normalizeName(name) ? " (Recommended)" : ""}
+                            {normalizeName(getSuggestedDepartmentFromReview(review)) === normalizeName(name) ? " (Recommended)" : ""}
                           </option>
                         ))}
                       </select>
