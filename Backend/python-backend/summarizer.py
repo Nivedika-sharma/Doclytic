@@ -134,11 +134,9 @@ def extract_text_from_file(file_bytes, filename):
             else:
                 df = pd.read_excel(io.BytesIO(file_bytes))
             
-            # Convert rows into "prose-like" text so DistilBART can understand it
             text_lines = []
-            # Limit to 30 rows to keep it concise for the summarizer
             for _, row in df.head(30).iterrows(): 
-                # Create a pseudo-sentence for each row, ignoring empty cells
+
                 row_str = ", ".join([f"{col}: {val}" for col, val in row.items() if pd.notna(val)])
                 text_lines.append(row_str + ".")
             
@@ -175,22 +173,6 @@ def get_essential_section(text):
     
     # default... return the start of doc
     return text[:4000] 
-
-def run_model_inference(text, max_len=150, min_len=40):
-    """Optimized for maximum speed: num_beams=1 with strict anti-repetition"""
-    inputs = tokenizer(text, max_length=1024, return_tensors="pt", truncation=True).to(device)
-    
-    summary_ids = model.generate(
-        inputs["input_ids"], 
-        max_length=max_len, 
-        min_length=min_len, 
-        num_beams=1,           
-        do_sample=False, 
-        early_stopping=True,
-        no_repeat_ngram_size=3,  
-        repetition_penalty=1.2 
-    )
-    return tokenizer.decode(summary_ids[0], skip_special_tokens=True)
 
 import random
 
@@ -237,32 +219,40 @@ def detect_document_type(text):
     ]
     return random.choice(options)
 
+def run_model_inference(text, max_len=100, min_len=30):
+    """Tweaked for better abstraction without sacrificing too much speed."""
+    inputs = tokenizer(text, max_length=1024, return_tensors="pt", truncation=True).to(device)
+    
+    summary_ids = model.generate(
+        inputs["input_ids"], 
+        max_length=max_len, 
+        min_length=min_len, 
+        num_beams=1,           
+        length_penalty=2.0,    
+        do_sample=False, 
+        early_stopping=True,
+        no_repeat_ngram_size=3,  
+        repetition_penalty=1.2 
+    )
+    return tokenizer.decode(summary_ids[0], skip_special_tokens=True)
 def generate_summary(text):
     if not text.strip():
         return "No text to summarize."
 
-    # 1. Clean the text: Remove excessive newlines/tabs that confuse DistilBART
     text = " ".join(text.split())
 
-    # 2. Get the essential section
     essential_text = get_essential_section(text)
 
-    # 3. Determine if we should even use the local model
-    # If the text is already very short (under 300 chars), a summary is redundant.
-    if len(essential_text) < 250:
+    if len(essential_text.split()) < 40:
         return f"This document mentions: {essential_text}"
 
     try:
-        # 4. Tweak Inference: Lower the repetition penalty slightly
-        # Too high (1.5) causes the model to output 'weird' words to avoid repeating.
-        raw_summary = run_model_inference(essential_text, max_len=60, min_len=20)
+        raw_summary = run_model_inference(essential_text, max_len=100, min_len=30)
         
         clean_summary = raw_summary.strip()
 
-        # 5. Smarter Prefixing: Only add prefix if it doesn't already overlap
         prefix = detect_document_type(text[:1000]) 
         
-        # Strip "The " if the prefix already ends with "that"
         if clean_summary.lower().startswith("the "):
             clean_summary = clean_summary[4:]
 
