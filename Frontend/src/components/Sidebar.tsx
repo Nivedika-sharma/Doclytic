@@ -141,12 +141,13 @@ export default function Sidebar() {
     top-[73px]
     left-0
     h-[calc(100vh-73px)]
-    bg-white
-    border-r border-gray-200
+    bg-blue-100/60 backdrop-blur-md 
+    border-r border-blue-200
     transition-all duration-300
     ${collapsed ? "w-20" : "w-64"}
     ${mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
   `}
+
       >
         {/* HEADER */}
         <div className="p-4 border-b flex items-center justify-between">
