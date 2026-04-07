@@ -1,6 +1,6 @@
 import { io } from "socket.io-client";
 import { useState, useEffect, useRef } from "react";
-import { Bell, Globe, LogOut, User, Check } from "lucide-react";
+import { Bell, Globe, LogOut, User, Check, Sun, Moon } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -139,30 +139,63 @@ const translateText = async (text: string) => {
     );
   };
 
+  // --- DARK MODE LOGIC START ---
+  const [darkMode, setDarkMode] = useState(() => {
+    // Check local storage or system preference on initial load
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('theme') === 'dark' || 
+             (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [darkMode]);
+
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
   return (
-    <nav className="bg-white/80 backdrop-blur-lg border-b border-gray-200 px-8 py-4 sticky top-0 z-50 shadow-md">
+    <nav className="bg-white/80 dark:bg-gray-950/80 backdrop-blur-lg border-b border-gray-200 dark:border-gray-800 px-8 py-4 sticky top-0 z-50 shadow-md">
       <div className="flex items-center justify-between">
 
         {/* Logo */}
         <div className="flex items-center shrink-0">
           <img 
-            src="/logo.png" 
+            src="/logoTransparent.png" 
             alt="Doclytic" 
-            className="h-12 md:h-16 w-auto max-w-none shrink-0 object-contain drop-shadow-sm" 
+            className="h-12 md:h-16 w-auto max-w-none shrink-0 object-contain drop-shadow-sm dark:brightness-125" 
           />
         </div>
 
         <div className="flex items-center gap-4">
 
+          {/* THE TOGGLE BUTTON */}
+          <button
+            onClick={() => setDarkMode(!darkMode)}
+            className="relative p-2 rounded-xl transition-all duration-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+            title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          >
+            {darkMode ? (
+              <Sun className="w-5 h-5 text-yellow-400 fill-yellow-400" />
+            ) : (
+              <Moon className="w-5 h-5 text-indigo-600 fill-indigo-600" />
+            )}
+          </button>
+
           {/* Notifications */}
           <div className="relative" ref={notifRef}>
             <button
               onClick={() => setShowNotifications(!showNotifications)}
-              className="relative p-2 rounded-xl hover:bg-gray-100 transition"
+              className="relative p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition"
             >
-              <Bell className="w-6 h-6 text-gray-700" />
+              <Bell className="w-6 h-6 text-gray-700 dark:text-gray-300" />
               {unreadCount > 0 && (
                 <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs
                   rounded-full w-5 h-5 flex items-center justify-center shadow animate-pulse">
@@ -178,16 +211,16 @@ const translateText = async (text: string) => {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.2 }}
-                  className="absolute right-0 mt-4 w-96 bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden"
+                  className="absolute right-0 mt-4 w-96 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden"
                 >
-                  <div className="px-6 py-4 border-b bg-gray-50 flex justify-between items-center">
-                    <h3 className="font-semibold text-gray-800">
+                  <div className="px-6 py-4 border-b bg-gray-50 dark:bg-gray-800 flex justify-between items-center">
+                    <h3 className="font-semibold text-gray-800 dark:text-gray-100 " >
                       Notifications
                     </h3>
                     {unreadCount > 0 && (
                       <button
                         onClick={markAllAsRead}
-                        className="text-sm text-blue-600 hover:underline flex items-center gap-1"
+                        className="text-sm text-blue-600 hover:underline flex items-center gap-1 dark:text-blue-300"
                       >
                         <Check className="w-4 h-4" />
                         Mark all as read
@@ -197,7 +230,7 @@ const translateText = async (text: string) => {
 
                   <div className="max-h-96 overflow-y-auto">
                     {notifications.length === 0 ? (
-                      <div className="p-6 text-center text-gray-500">
+                      <div className="p-6 text-center text-gray-500 dark:text-gray-100">
                         No notifications
                       </div>
                     ) : (
@@ -205,17 +238,17 @@ const translateText = async (text: string) => {
                         <div
                           key={n._id}
                           onClick={() => openNotification(n)}
-                          className={`px-6 py-4 border-b cursor-pointer transition
-                          ${n.is_read ? "bg-white" : "bg-blue-50"}
-                          hover:bg-gray-100`}
+                          className={`px-6 py-4 border-b dark:border-gray-600 cursor-pointer transition
+                          ${n.is_read ? "bg-white dark:bg-gray-900" : "bg-blue-50 dark:bg-gray-800/40"}
+                          hover:bg-gray-100 dark:hover:bg-gray-800`}
                         >
-                          <p className="font-semibold text-gray-800">
+                          <p className="font-semibold text-gray-800 dark:text-gray-100">
                             {n.title}
                           </p>
-                          <p className="text-sm text-gray-600 mt-1">
+                          <p className="text-sm text-gray-600 mt-1 dark:text-gray-300">
                             {n.message}
                           </p>
-                          <span className="text-xs text-gray-400 mt-2 block">
+                          <span className="text-xs text-gray-400 dark:text-gray-500 mt-2 block">
                             {new Date(n.createdAt).toLocaleString()}
                           </span>
                         </div>
@@ -234,21 +267,21 @@ const translateText = async (text: string) => {
               setLanguage(newLang);
               localStorage.setItem("appLanguage", newLang);
             }}
-            className="p-2 rounded-xl hover:bg-gray-100 transition"
+            className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition"
           >
-            <Globe className="w-6 h-6 text-gray-700" />
+            <Globe className="w-6 h-6 text-gray-700 dark:text-gray-400" />
           </button>
 
           {/* Profile */}
           <div className="relative" ref={profileRef}>
             <button
               onClick={() => setShowProfileMenu(!showProfileMenu)}
-              className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition"
+              className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition"
             >
-              <div className="w-9 h-9 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-center font-semibold shadow">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 dark:bg-gray-700 text-white flex items-center justify-center font-semibold shadow">
                 {profile?.full_name?.charAt(0).toUpperCase() || "U"}
               </div>
-              <span className="text-gray-800 font-medium hidden sm:block">
+              <span className="text-gray-800 dark:text-gray-200 font-medium hidden sm:block">
                 {profile?.full_name}
               </span>
             </button>
@@ -260,20 +293,20 @@ const translateText = async (text: string) => {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
                   transition={{ duration: 0.2 }}
-                  className="absolute right-0 mt-4 w-60 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden"
+                  className="absolute right-0 mt-4 w-60 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-800 overflow-hidden"
                 >
-                  <div className="px-5 py-4 border-b bg-gray-50">
-                    <p className="font-semibold text-gray-800">
+                  <div className="px-5 py-4 border-b dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+                    <p className="font-semibold text-gray-800 dark:text-gray-300">
                       {profile?.full_name}
                     </p>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-gray-500 dark:text-gray-300">
                       {profile?.email}
                     </p>
                   </div>
 
                   <button
                     onClick={() => navigate("/profile")}
-                    className="w-full px-5 py-3 text-left hover:bg-gray-100 transition flex items-center gap-3 text-gray-700"
+                    className="w-full px-5 py-3 text-left hover:bg-gray-100 transition flex items-center gap-3 text-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
                   >
                     <User className="w-5 h-5" />
                     View Profile
@@ -284,7 +317,7 @@ const translateText = async (text: string) => {
                       await signOut();
                       navigate("/login");
                     }}
-                    className="w-full px-5 py-3 text-left hover:bg-red-50 transition flex items-center gap-3 text-red-600"
+                    className="w-full px-5 py-3 text-left hover:bg-red-50 dark:hover:bg-gray-800 transition flex items-center gap-3 text-red-600"
                   >
                     <LogOut className="w-5 h-5" />
                     Sign Out

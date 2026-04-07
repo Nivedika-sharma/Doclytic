@@ -89,13 +89,13 @@ export default function Sidebar() {
         title={collapsed ? item.label : ""}
         className={`group relative w-full flex items-center space-x-3 p-3 rounded-xl transition-all duration-200
           ${active
-            ? "bg-blue-100 text-blue-700 shadow-sm"
-            : "text-gray-700 hover:bg-gray-100"
+            ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 shadow-sm"
+            : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700/50"
           }`}
       >
         <Icon
           className="w-5 h-5 flex-shrink-0 transition-transform group-hover:scale-110"
-          style={{ color: item.color || (active ? "#2563EB" : "") }}
+          style={{ color: item.color || (active ? "#2563EB dark:#2563EB" : "") }}
         />
 
         {!collapsed && (
@@ -121,7 +121,7 @@ export default function Sidebar() {
       {/* MOBILE OVERLAY */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 bg-black/40 z-40 md:hidden"
+          className="fixed inset-0 bg-black/40 dark:bg-black/60 z-40 md:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}
@@ -129,7 +129,7 @@ export default function Sidebar() {
       {/* MOBILE TOGGLE BUTTON */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="md:hidden fixed top-4 left-4 z-50 bg-white p-2 rounded-lg shadow"
+        className="md:hidden fixed top-4 left-4 z-50 bg-white dark:bg-gray-800 p-2 rounded-lg shadow"
       >
         <Menu className="w-6 h-6" />
       </button>
@@ -141,8 +141,8 @@ export default function Sidebar() {
     top-[73px]
     left-0
     h-[calc(100vh-73px)]
-    bg-blue-100/60 backdrop-blur-md 
-    border-r border-blue-200
+    bg-blue-100/60 dark:bg-slate-900 backdrop-blur-md 
+    border-r border-blue-200 dark:border-blue-700
     transition-all duration-300
     ${collapsed ? "w-20" : "w-64"}
     ${mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
@@ -153,21 +153,21 @@ export default function Sidebar() {
         <div className="p-4 border-b flex items-center justify-between">
           {!collapsed ? (
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-center text-lg font-semibold shadow">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 dark:bg-gradient-to-r dark:from-blue-400 dark:to-indigo-400 text-white dark:text-gray-300 flex items-center justify-center text-lg font-semibold shadow">
                 {profile?.full_name?.charAt(0).toUpperCase()}
               </div>
               <div>
-                <p className="text-sm font-semibold text-gray-900">
+                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                   {profile?.full_name}
                 </p>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-gray-500 dark:text-gray-400">
                   {profile?.designation || "User"}
                 </p>
               </div>
             </div>
           ) : (
             <div className="w-full flex justify-center">
-              <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-semibold">
+              <div className="w-8 h-8 rounded-full bg-blue-600 dark:bg-blue-400 dark:text-gray-300 text-white flex items-center justify-center text-sm font-semibold">
                 {profile?.full_name?.charAt(0).toUpperCase()}
               </div>
             </div>
@@ -175,7 +175,7 @@ export default function Sidebar() {
 
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="p-2 rounded-lg hover:bg-gray-100 transition"
+            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900 transition"
           >
             {collapsed ? <Menu size={20} /> : <X size={20} />}
           </button>
@@ -191,7 +191,7 @@ export default function Sidebar() {
           {/* Departments */}
           {!collapsed && (
             <div className="pt-4 mt-4 border-t">
-              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+              <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-600 uppercase tracking-wider mb-2">
                 Departments
               </h3>
             </div>
@@ -217,7 +217,7 @@ export default function Sidebar() {
         <div className="p-4 border-t">
           <button
             onClick={signOut}
-            className="w-full flex items-center space-x-3 p-3 rounded-xl text-red-600 hover:bg-red-50 transition"
+            className="w-full flex items-center space-x-3 p-3 rounded-xl text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900 transition"
           >
             <LogOut className="w-5 h-5" />
             {!collapsed && (

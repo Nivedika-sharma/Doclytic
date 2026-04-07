@@ -38,14 +38,14 @@ const DocumentChat: React.FC<DocumentChatProps> = ({ documentId }) => {
     };
 
     return (
-        <div className="flex flex-col h-full bg-white w-full">
-            <div className="p-4 border-b bg-slate-50 font-semibold text-gray-700 flex items-center gap-2">
+        <div className="flex flex-col h-full bg-white dark:bg-gray-800 w-full">
+            <div className="p-4 border-b bg-slate-50 dark:bg-gray-900/60 font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-green-500"></span>
                 AI Document Assistant
             </div>
             
             {/* Chat History Area */}
-            <div className="flex-1 p-4 overflow-y-auto flex flex-col gap-4 bg-white">
+            <div className="flex-1 p-4 overflow-y-auto flex flex-col gap-4 bg-white dark:bg-gray-800">
                 {messages.length === 0 ? (
                     <div className="text-gray-400 text-sm text-center mt-10">
                         Ask me anything about this document!
@@ -55,8 +55,8 @@ const DocumentChat: React.FC<DocumentChatProps> = ({ documentId }) => {
                         <div key={idx} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                             <div className={`p-3 rounded-2xl max-w-[85%] text-sm shadow-sm ${
                                 msg.sender === 'user' 
-                                ? 'bg-blue-600 text-white rounded-br-none' 
-                                : 'bg-slate-100 text-slate-800 border border-slate-200 rounded-bl-none'
+                                ? 'bg-blue-600 dark:bg-blue-700/70 text-white rounded-br-none' 
+                                : 'bg-slate-100 dark:bg-gray-700 text-slate-800 dark:text-gray-300 border border-slate-200 dark:border-gray-600 rounded-bl-none'
                             }`}>
                                 {msg.text}
                             </div>
@@ -65,7 +65,7 @@ const DocumentChat: React.FC<DocumentChatProps> = ({ documentId }) => {
                 )}
                 {isLoading && (
                     <div className="flex justify-start">
-                        <div className="bg-slate-100 text-slate-500 text-sm p-3 rounded-2xl rounded-bl-none animate-pulse border border-slate-200 shadow-sm">
+                        <div className="bg-slate-100 dark:bg-gray-700 text-slate-500 dark:text-gray-300 text-sm p-3 rounded-2xl rounded-bl-none animate-pulse border dark:border-gray-600 border-slate-200 shadow-sm">
                             Thinking...
                         </div>
                     </div>
@@ -73,20 +73,20 @@ const DocumentChat: React.FC<DocumentChatProps> = ({ documentId }) => {
             </div>
 
             {/* Input Area */}
-            <div className="p-4 border-t bg-white flex gap-2">
+            <div className="p-4 border-t bg-white dark:bg-gray-800 flex gap-2">
                 <input
                     type="text"
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={handleKeyPress}
                     placeholder="Ask a question..."
-                    className="flex-1 p-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    className="flex-1 p-2 dark:bg-gray-700 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-700 text-sm"
                     disabled={isLoading}
                 />
                 <button
                     onClick={handleSend}
                     disabled={isLoading || !inputValue.trim()}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors text-sm font-medium"
+                    className="bg-blue-600 dark:bg-blue-500/80  text-white px-4 py-2 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-500  disabled:opacity-50 transition-colors text-sm font-medium"
                 >
                     Send
                 </button>

@@ -290,7 +290,7 @@ export default function DocumentViewer({
   const renderOfficeLoading = (color: string, label: string) => (
     <div className="flex flex-col items-center justify-center h-full gap-3">
       <div className={`animate-spin rounded-full h-8 w-8 border-b-2 ${color}`} />
-      <span className="text-gray-600 text-sm">{label}</span>
+      <span className="text-gray-600 dark:text-gray-400 text-sm">{label}</span>
     </div>
   );
 
@@ -313,7 +313,7 @@ export default function DocumentViewer({
     // Images
     if (["jpg", "jpeg", "png", "gif", "bmp", "webp", "svg"].includes(ext) || effectiveType.includes("image")) {
       return (
-        <div className="flex items-center justify-center h-full bg-gray-50 overflow-auto">
+        <div className="flex items-center justify-center h-full bg-gray-50 dark:bg-gray-800overflow-auto">
           <img
             src={viewUrl}
             alt={fileName}
@@ -338,13 +338,13 @@ export default function DocumentViewer({
     // Audio
     if (["mp3", "wav", "ogg", "m4a", "aac", "flac"].includes(ext) || effectiveType.includes("audio")) {
       return (
-        <div className="flex flex-col items-center justify-center h-full bg-gray-50 gap-4">
-          <div className="w-24 h-24 rounded-full bg-blue-100 flex items-center justify-center">
-            <svg className="w-12 h-12 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+        <div className="flex flex-col items-center justify-center h-full bg-gray-50 dark:bg-gray-800 gap-4">
+          <div className="w-24 h-24 rounded-full bg-blue-100 dark:bg-blue-800/70 flex items-center justify-center">
+            <svg className="w-12 h-12 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z" />
             </svg>
           </div>
-          <p className="text-gray-700 font-medium">{resolvedFileName || fileName}</p>
+          <p className="text-gray-700 dark:text-gray-300 font-medium">{resolvedFileName || fileName}</p>
           <audio src={viewUrl} controls className="w-80">
             Your browser does not support audio playback.
           </audio>
@@ -354,7 +354,7 @@ export default function DocumentViewer({
 
     // Text / Code
     if (["txt", "js", "jsx", "ts", "tsx", "json", "xml", "html", "css", "md"].includes(ext)) {
-      return <iframe src={viewUrl} className="w-full h-full border-0 bg-white" title="Text Viewer" />;
+      return <iframe src={viewUrl} className="w-full h-full border-0 bg-white dark:bg-gray-800 " title="Text Viewer" />;
     }
 
     // Word Documents — mammoth converts to HTML in browser
@@ -363,7 +363,7 @@ export default function DocumentViewer({
       if (docHtml) {
         return (
           <div
-            className="w-full h-full overflow-auto p-8 bg-white prose max-w-none"
+            className="w-full h-full overflow-auto p-8 bg-white dark:bg-gray-800 prose max-w-none"
             dangerouslySetInnerHTML={{ __html: docHtml }}
           />
         );
@@ -376,7 +376,7 @@ export default function DocumentViewer({
       if (sheetHtml) {
         return (
           <div
-            className="w-full h-full overflow-auto p-4 bg-white"
+            className="w-full h-full overflow-auto p-4 dark:bg-gray-800 bg-white"
             style={{ fontSize: "13px" }}
             dangerouslySetInnerHTML={{ __html: sheetHtml }}
           />
@@ -397,16 +397,16 @@ export default function DocumentViewer({
         );
       }
       return (
-        <div className="flex flex-col items-center justify-center h-full bg-gray-50 p-8 gap-4">
+        <div className="flex flex-col items-center justify-center h-full dark:bg-gray-900/60 bg-gray-50 p-8 gap-4">
           <FileText className="w-20 h-20 text-orange-500" />
-          <p className="text-gray-700 font-semibold">PowerPoint Presentation</p>
-          <p className="text-gray-500 text-sm text-center">
+          <p className="text-gray-700 dark:text-gray-300 font-semibold">PowerPoint Presentation</p>
+          <p className="text-gray-500 dark:text-gray-400 text-sm text-center">
             PowerPoint files can't be previewed locally.<br />
             Upload to a public server (S3) to enable preview.
           </p>
           <button
             onClick={handleDownload}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg flex items-center gap-2 hover:bg-blue-700"
+            className="px-6 py-3 bg-blue-600 text-white dark:bg-gray-800 rounded-lg flex items-center gap-2 hover:bg-blue-700"
           >
             <Download className="w-5 h-5" />
             Download to View
@@ -417,13 +417,13 @@ export default function DocumentViewer({
 
     // Default fallback
     return (
-      <div className="flex flex-col items-center justify-center h-full bg-gray-50 p-8">
-        <File className="w-20 h-20 text-gray-400 mb-4" />
-        <p className="text-gray-700 font-semibold mb-2">{resolvedFileName || fileName}</p>
-        <p className="text-gray-600 mb-4 text-center">Preview not available for this file type</p>
+      <div className="flex flex-col items-center justify-center h-full bg-gray-50 dark:bg-gray-800 p-8">
+        <File className="w-20 h-20 text-gray-400 dark:text-gray-500 mb-4" />
+        <p className="text-gray-700 dark:text-gray-300 dark:bg-gray-800  font-semibold mb-2">{resolvedFileName || fileName}</p>
+        <p className="text-gray-600 dark:bg-gray-800 dark:text-gray-400 mb-4 text-center">Preview not available for this file type</p>
         <button
           onClick={handleDownload}
-          className="px-6 py-3 bg-blue-600 text-white rounded-lg flex items-center gap-2 hover:bg-blue-700"
+          className="px-6 py-3 bg-blue-600 text-white dark:bg-blue-300 dark:text-gray-700 rounded-lg flex items-center gap-2 hover:bg-blue-700 dark:hover:bg-blue-400"
         >
           <Download className="w-5 h-5" />
           Download File
@@ -434,10 +434,10 @@ export default function DocumentViewer({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full bg-gray-50">
+      <div className="flex items-center justify-center h-full bg-gray-50 dark:bg-gray-800 ">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading preview...</p>
+          <p className="text-gray-600 dark:text-gray-400">Loading preview...</p>
         </div>
       </div>
     );
@@ -445,13 +445,13 @@ export default function DocumentViewer({
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-full bg-gray-50 p-8">
+      <div className="flex flex-col items-center justify-center h-full bg-gray-50 dark:bg-gray-800 p-8">
         <File className="w-20 h-20 text-red-400 mb-4" />
-        <p className="text-red-600 font-semibold mb-2">Preview Error</p>
-        <p className="text-gray-600 mb-4">{error}</p>
+        <p className="text-red-600 dark:text-red-400 font-semibold mb-2">Preview Error</p>
+        <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
         <button
           onClick={loadDocument}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          className="px-4 py-2 bg-blue-600 dark:bg-blue-400 text-white dark:text-gray-700 rounded-lg hover:bg-blue-700 dark:bg-blue-300"
         >
           Retry
         </button>
@@ -460,7 +460,7 @@ export default function DocumentViewer({
   }
 
   return (
-    <div className="h-full flex flex-col bg-white rounded-lg border">
+    <div className="h-full flex flex-col bg-white dark:bg-gray-800 rounded-lg border">
       {/* Zoom Controls — shown for PDF and images */}
       {["pdf", "jpg", "jpeg", "png", "gif", "bmp", "webp"].includes(getFileExtension()) && (
         <div className="flex items-center gap-2 p-3 border-b bg-gray-50">

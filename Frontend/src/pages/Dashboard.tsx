@@ -14,7 +14,9 @@ import {
   FileText,
   Search,
   Sparkles,
-  Trash2
+  Trash2,
+  Sun,
+  Moon
 } from "lucide-react";
 
 import DashboardLayout from "../components/DashboardLayout";
@@ -160,6 +162,8 @@ export default function Dashboard() {
   const { profile, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
+  
+
   useEffect(() => {
     if (authLoading) {
       console.log("⏳ Auth still loading...");
@@ -209,7 +213,7 @@ export default function Dashboard() {
     setLoading(false);
   };
 
-const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
+  const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
     const sorted = [...docs].sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
@@ -906,11 +910,11 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
 
   return (
   <DashboardLayout>
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-8">
+    <div className="min-h-screen bg-gradient-to-r from-slate-50 via-blue-50 to-indigo-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-8">
 
       {/* ================= HERO HEADER ================= */}
       <div className="mb-12">
-        <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-3xl p-10 text-white shadow-2xl relative overflow-hidden">
+        <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 dark:bg-gradient-to-r dark:from-light-blue-800 dark:via-indigo-800 dark:to-purple-800 rounded-3xl p-10 text-white dark:text-gray-300 shadow-2xl relative overflow-hidden">
           
           <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-8">
             
@@ -923,20 +927,21 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
               </p>
             </div>
 
+
             {/* Search */}
-            <div className="relative w-full md:w-96">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <div className="relative w-full md:w-96 ">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 " />
               <input
                 type="text"
                 placeholder="Search documents, attachments..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-12 pr-10 py-3 rounded-xl bg-white text-gray-800 shadow-lg focus:ring-2 focus:ring-white outline-none transition"
+                className="w-full pl-12 pr-10 py-3 rounded-xl bg-white dark:bg-gray-800 dark:text-gray-400 text-gray-800 shadow-lg focus:ring-2 focus:ring-white dark:focus:ring-gray-500 outline-none transition"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery("")}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition"
                 >
                   ✕
                 </button>
@@ -950,76 +955,76 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
 
         {/* Total Documents */}
-        <div className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg hover:shadow-xl transition">
           <div className="flex justify-between items-center">
             <div>
-              <p className="text-gray-500 text-sm">Total Documents</p>
-              <h2 className="text-3xl font-bold text-gray-800 mt-1">
+              <p className="text-gray-500 dark:text-gray-400 text-sm">Total Documents</p>
+              <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-300 mt-1">
                 {documents.length}
               </h2>
             </div>
-            <FileText className="w-10 h-10 text-blue-600" />
+            <FileText className="w-10 h-10 text-blue-600 dark:text-blue-400" />
           </div>
         </div>
 
         {/* High Priority */}
-        <div className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg hover:shadow-xl transition">
           <div className="flex justify-between items-center">
             <div>
-              <p className="text-gray-500 text-sm">High Priority</p>
-              <h2 className="text-3xl font-bold text-red-600 mt-1">
+              <p className="text-gray-500 dark:text-gray-400 text-sm">High Priority</p>
+              <h2 className="text-3xl font-bold text-red-600 dark:text-red-400 mt-1">
                 {documents.filter((d) => {
                   const level = d.priority?.priority_level;
                   return d.urgency === "high" || level === "High" || level === "Critical";
                 }).length}
               </h2>
             </div>
-            <Clock className="w-10 h-10 text-red-500" />
+            <Clock className="w-10 h-10 text-red-500 dark:text-red-400" />
           </div>
         </div>
 
         {/* Gmail Files */}
-        <div className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg hover:shadow-xl transition">
           <div className="flex justify-between items-center">
             <div>
-              <p className="text-gray-500 text-sm">Gmail Attachments</p>
-              <h2 className="text-3xl font-bold text-indigo-600 mt-1">
+              <p className="text-gray-500 dark:text-gray-400 text-sm">Gmail Attachments</p>
+              <h2 className="text-3xl font-bold text-indigo-600 dark:text-indigo-400 mt-1">
                 {gmailFiles.length}
               </h2>
             </div>
-            <Mail className="w-10 h-10 text-indigo-500" />
+            <Mail className="w-10 h-10 text-indigo-500 dark:text-indigo-400" />
           </div>
         </div>
 
       </div>
 
-      <div className="mb-8 bg-white/90 backdrop-blur-lg p-6 rounded-2xl shadow-lg border border-white/50">
+      <div className="mb-8 bg-white/90 dark:bg-gray-800/90 backdrop-blur-lg p-6 rounded-2xl shadow-lg border border-white/50 dark:border-gray-700/50">
         <div className="flex items-center gap-2 mb-3">
-          <Sparkles className="w-5 h-5 text-indigo-600" />
-          <h2 className="text-xl font-bold text-gray-800">Latest Document Insights</h2>
+          <Sparkles className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+          <h2 className="text-xl font-bold text-gray-800 dark:text-gray-200">Latest Document Insights</h2>
         </div>
         
-        <p className="text-xs text-gray-500 mb-3">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
           Synthesized from your 4 most recent documents
         </p>
 
         {latestSummaryLoading ? (
           <div className="flex items-center gap-2">
-            <RefreshCw className="w-3 h-3 animate-spin text-gray-400" />
-            <p className="text-sm text-gray-600">Analyzing latest activity...</p>
+            <RefreshCw className="w-3 h-3 animate-spin text-gray-400 dark:text-gray-500" />
+            <p className="text-sm text-gray-600 dark:text-gray-400">Analyzing latest activity...</p>
           </div>
         ) : latestSummaryError ? (
-          <p className="text-sm text-red-600">{latestSummaryError}</p>
+          <p className="text-sm text-red-600 dark:text-red-400">{latestSummaryError}</p>
         ) : (
           <div className="space-y-3">
-            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
+            <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line">
               {latestIntegratedSummary || "No integrated summary available."}
             </p>
             
             {/* THIS ADDS THE LINKS AT THE BOTTOM */}
             {latestIntegratedSummary && latestSummaryDocs.length > 0 && (
               <div className="flex items-center gap-3 pt-3 mt-2 border-t border-indigo-50/50">
-                <span className="text-xs text-gray-500 font-medium">Sources:</span>
+                <span className="text-xs text-gray-500 dark:text-gray-300 font-medium">Sources:</span>
                 {latestSummaryDocs.map((doc) => (
                   <button
                     key={doc._id}
@@ -1038,18 +1043,18 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
 
       
      {/* DOCUMENTS SECTION */}
-        <div className="bg-white/80 backdrop-blur-lg p-8 rounded-3xl shadow-xl mb-12 border border-white/40">
+        <div className="bg-white/80 dark:bg-gray-800 backdrop-blur-lg p-8 rounded-3xl shadow-xl mb-12 border border-white/40 dark:border-gray-700/60">
           <div className="flex justify-between items-center mb-8">
-            <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
-              <FileText className="w-6 h-6 text-blue-600" /> Recent Documents
+            <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200 flex items-center gap-3">
+              <FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" /> Recent Documents
             </h2>
             <div className="flex gap-3">
-              <button onClick={loadData} className="px-5 py-2.5 bg-gray-100 rounded-xl hover:bg-gray-200 transition flex items-center gap-2">
+              <button onClick={loadData} className="px-5 py-2.5 bg-gray-100 dark:bg-gray-900 dark:text-gray-300 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 transition flex items-center gap-2">
                 <RefreshCw className="w-4 h-4" /> Refresh
               </button>
               <button 
                 onClick={() => fileInputRef.current?.click()}
-                className="px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-md transition flex items-center gap-2"
+                className="px-5 py-2.5 bg-blue-600 dark:bg-blue-500 dark:text-white rounded-xl hover:bg-blue-700 dark:hover:bg-blue-400 shadow-md transition flex items-center gap-2"
               >
                 <Upload className="w-4 h-4" /> Upload
               </button>
@@ -1065,7 +1070,7 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
           {loading ? (
             <div className="py-16 text-center text-gray-500">Loading...</div>
           ) : filteredDocuments.length === 0 ? (
-            <div className="py-16 text-center"><FileText className="w-12 h-12 mx-auto text-gray-300 mb-4" /><p className="text-gray-500 text-lg">No documents found.</p></div>
+            <div className="py-16 text-center"><FileText className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-700 mb-4" /><p className="text-gray-500 text-lg">No documents found.</p></div>
           ) : (
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
   {filteredDocuments.map((doc) => (
@@ -1073,14 +1078,14 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
       
       <div
         onClick={() => navigate(`/document/${doc._id}`)}
-        className="group absolute top-0 left-0 w-full h-full bg-white rounded-2xl p-5 border border-gray-200 shadow-sm 
+        className="group absolute top-0 left-0 w-full h-full bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-200 dark:border-gray-900 shadow-sm 
                    transition-all duration-300 ease-in-out cursor-pointer flex flex-col
                    hover:w-[120%] hover:-left-[10%] hover:h-fit hover:min-h-[110%] 
-                   hover:scale-105 hover:z-[100] hover:shadow-2xl hover:border-blue-200"
+                   hover:scale-105 hover:z-[100] hover:shadow-2xl hover:border-blue-200 dark:hover:border-blue-600"
       >
         <div className="flex flex-col h-full">
           <div className="flex justify-between items-start mb-3">
-            <h3 className="font-bold text-gray-800 group-hover:text-blue-600 transition line-clamp-1 pr-2">
+            <h3 className="font-bold text-gray-800 dark:text-gray-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition line-clamp-1 pr-2">
               {doc.title}
             </h3>
             <div className="flex items-center gap-2 shrink-0">
@@ -1092,7 +1097,7 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
                   e.stopPropagation();
                   handleDeleteDocument(doc._id);
                 }}
-                className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                className="p-1 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -1101,16 +1106,16 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
           
           <div className="flex-grow overflow-hidden group-hover:overflow-visible">
             <div className="flex items-center gap-1 mb-1.5">
-              <Sparkles className="w-3 h-3 text-blue-500" />
-              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Quick Extract</span>
+              <Sparkles className="w-3 h-3 text-blue-500 dark:text-blue-400" />
+              <span className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Quick Extract</span>
             </div>
             
-            <p className="text-sm text-gray-500 line-clamp-3 group-hover:line-clamp-none group-hover:text-xs transition-all duration-300 leading-relaxed">
+            <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-3 group-hover:line-clamp-none group-hover:text-xs transition-all duration-300 leading-relaxed">
               {doc.summary}
             </p>
           </div>
 
-          <div className="mt-2 pt-3 border-t border-gray-50 flex justify-between items-center text-[10px] text-gray-400 shrink-0">
+          <div className="mt-2 pt-3 border-t border-gray-50 flex justify-between items-center text-[10px] text-gray-400 dark:text-gray-600 shrink-0">
             <span className="flex items-center gap-1">
               <Clock className="w-3 h-3" />
               {new Date(doc.createdAt).toLocaleDateString()}
@@ -1132,18 +1137,18 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
           )}
         </div>
       {/* ================= GMAIL SECTION ================= */}
-      <div className="bg-white/80 backdrop-blur-lg p-8 rounded-3xl shadow-xl border border-white/40">
+      <div className="bg-white/80 dark:bg-gray-800 backdrop-blur-lg p-8 rounded-3xl shadow-xl border border-white/40 dark:border-gray-700/60">
         
         <div className="flex justify-between items-center mb-8">
-          <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
-            <Mail className="w-6 h-6 text-indigo-600" />
+          <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200 flex items-center gap-3">
+            <Mail className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
             Gmail Attachments
           </h2>
 
           <div className="flex gap-3">
             <button
               onClick={loadGmailFiles}
-              className="px-5 py-2.5 bg-gray-100 rounded-xl hover:bg-gray-200 transition flex items-center gap-2"
+              className="px-5 py-2.5 dark:text-gray-200 bg-gray-100 dark:bg-gray-900 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-800 transition flex items-center gap-2"
             >
               <RefreshCw className="w-4 h-4" /> Reload
             </button>
@@ -1168,7 +1173,7 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
                   setGmailLoading(false);
                 }
               }}
-              className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-md hover:shadow-lg transition flex items-center gap-2"
+              className="px-5 py-2.5 bg-indigo-600 dark:bg-indigo-500 text-white rounded-xl hover:bg-indigo-700 dark:hover:bg-indigo-400 shadow-md hover:shadow-lg transition flex items-center gap-2"
             >
               <Upload className="w-4 h-4" /> Pull Mail
             </button>
@@ -1179,7 +1184,7 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
           <div className="py-16 text-center text-gray-500">Loading...</div>
         ) : filteredGmailFiles.length === 0 ? (
           <div className="py-16 text-center">
-            <Mail className="w-12 h-12 mx-auto text-gray-300 mb-4" />
+            <Mail className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-700 mb-4" />
             <p className="text-gray-500 text-lg">
               No Gmail attachments found.
             </p>
@@ -1192,14 +1197,14 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
 
       <div
         onClick={() => navigate(`/document/${doc._id}`)}
-        className="group absolute top-0 left-0 w-full h-full bg-white rounded-2xl p-5 border border-gray-200 shadow-sm 
+        className="group absolute top-0 left-0 w-full h-full bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-200 dark:border-gray-700 shadow-sm 
                    transition-all duration-300 ease-in-out cursor-pointer flex flex-col
                    hover:w-[120%] hover:-left-[10%] hover:h-fit hover:min-h-[110%] 
-                   hover:scale-105 hover:z-[100] hover:shadow-2xl hover:border-blue-200"
+                   hover:scale-105 hover:z-[100] hover:shadow-2xl hover:border-blue-200 dark:hover:border-blue-600"
       >
         <div className="flex flex-col h-full">
           <div className="flex justify-between items-start mb-3">
-            <h3 className="font-bold text-gray-800 group-hover:text-blue-600 transition line-clamp-1 pr-2">
+            <h3 className="font-bold text-gray-800 dark:text-gray-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition line-clamp-1 pr-2">
               {doc.title}
             </h3>
             <div className="flex items-center gap-2 shrink-0">
@@ -1211,7 +1216,7 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
                   e.stopPropagation();
                   handleDeleteDocument(doc._id);
                 }}
-                className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                className="p-1 text-gray-400 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 transition-colors"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -1221,7 +1226,7 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
           <div className="flex-grow overflow-hidden group-hover:overflow-visible">
             <div className="flex items-center gap-1 mb-1.5">
               <Sparkles className="w-3 h-3 text-blue-500" />
-              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Quick Extract</span>
+              <span className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Quick Extract</span>
             </div>
             
             <p className="text-sm text-gray-500 line-clamp-3 group-hover:line-clamp-none group-hover:text-xs transition-all duration-300 leading-relaxed">
@@ -1229,7 +1234,7 @@ const loadLatestIntegratedSummary = async (docs: DocumentWithDetails[]) => {
             </p>
           </div>
 
-          <div className="mt-2 pt-3 border-t border-gray-50 flex justify-between items-center text-[10px] text-gray-400 shrink-0">
+          <div className="mt-2 pt-3 border-t border-gray-50 dark:border-gray-700 flex justify-between items-center text-[10px] text-gray-400 dark:text-gray-600 shrink-0">
             <span className="flex items-center gap-1">
               <Clock className="w-3 h-3" />
               {new Date(doc.createdAt).toLocaleDateString()}

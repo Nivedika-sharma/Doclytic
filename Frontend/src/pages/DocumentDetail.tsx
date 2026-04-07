@@ -208,39 +208,39 @@ export default function DocumentDetail() {
   return (
     <DashboardLayout>
       <div className="h-[calc(100vh-73px)] flex flex-col relative">
-        <div className="bg-white px-6 py-4 flex items-center justify-between border-b">
+        <div className="bg-white dark:bg-gray-900/20 dark:text-gray-100 px-6 py-4 flex items-center justify-between border-b">
           <div className="flex items-center space-x-4">
-            <button onClick={() => navigate("/dashboard")} className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+            <button onClick={() => navigate("/dashboard")} className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">{document.title}</h1>
-              <p className="text-sm text-gray-600">{document.department?.name} • {new Date(document.createdAt || "").toLocaleDateString()}</p>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{document.title}</h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{document.department?.name} • {new Date(document.createdAt || "").toLocaleDateString()}</p>
             </div>
           </div>
         </div>
 
         <div className="flex-1 flex overflow-hidden">
-          <div className="flex-1 bg-gray-50 overflow-y-auto p-8">
-            <div className="max-w-4xl mx-auto bg-white shadow-lg rounded-lg p-12">
-              <div className="mb-6 pb-6 border-b border-gray-200">
+          <div className="flex-1 bg-gray-50 dark:bg-gray-800 overflow-y-auto p-8">
+            <div className="max-w-4xl mx-auto bg-white dark:bg-gray-900/30 shadow-lg rounded-lg p-12">
+              <div className="mb-6 pb-6 border-b border-gray-200 dark:border-gray-900">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex gap-2">
                     <span className={`px-3 py-1 rounded-full text-sm font-medium ${document.urgency === "high" ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"}`}>
                       {(document.urgency || "medium").toUpperCase()}
                     </span>
-                    <span className="px-3 py-1 rounded-full text-sm font-medium bg-slate-100 text-slate-700">
+                    <span className="px-3 py-1 rounded-full text-sm font-medium bg-slate-100 dark:bg-slate-900 dark:text-slate-200 text-slate-700">
                       SCORE: {document.priority?.priority_score ?? "N/A"}
                     </span>
                   </div>
-                  <button onClick={() => setShowCommentDialog(true)} className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm">
+                  <button onClick={() => setShowCommentDialog(true)} className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:hover:bg-slate-900/30 dark:bg-slate-900 dark:text-slate-200 text-slate-700 rounded-lg text-sm">
                     <MessageSquare className="w-4 h-4" />
                     Comments ({comments.length})
                   </button>
                 </div>
                 
-                <div className="bg-blue-50 border-l-4 border-blue-600 p-5 mb-8">
-  <p className="text-xs font-bold text-blue-800 uppercase tracking-widest mb-3">Detailed Analysis</p>
+                <div className="bg-blue-50 dark:bg-blue-900/30 border-l-4 border-blue-600 dark:border-blue-600 p-5 mb-8">
+  <p className="text-xs font-bold text-blue-800 dark:text-blue-300 uppercase tracking-widest mb-3">Detailed Analysis</p>
   {isGeneratingSummary ? (
     <div className="py-4 flex flex-col items-center justify-center space-y-2">
       <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
@@ -248,14 +248,14 @@ export default function DocumentDetail() {
     </div>
   ) : (
     <div className="relative">
-      <p className={`text-sm text-gray-800 leading-relaxed whitespace-pre-wrap transition-all duration-300 ${isSummaryExpanded ? "" : "line-clamp-4"}`}>
+      <p className={`text-sm text-gray-800 dark:text-gray-300 leading-relaxed whitespace-pre-wrap transition-all duration-300 ${isSummaryExpanded ? "" : "line-clamp-4"}`}>
         {detailedSummary || document.summary}
       </p>
 
       {((detailedSummary || document.summary)?.length || 0) > 250 && (
         <button 
           onClick={() => setIsSummaryExpanded(!isSummaryExpanded)}
-          className="mt-3 text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors bg-blue-50/80 backdrop-blur-sm pr-4 py-1"
+          className="mt-3 text-xs font-bold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-500 flex items-center gap-1 transition-colors bg-blue-50/80 dark:bg-blue-900/5 backdrop-blur-sm pr-4 py-1"
         >
           {isSummaryExpanded ? (
             <>Show Less <ChevronUp className="w-3 h-3" /></>
@@ -269,7 +269,7 @@ export default function DocumentDetail() {
 </div>
               </div>
 
-              <div className="bg-white rounded-xl shadow-sm border overflow-hidden" style={{ height: "800px" }}>
+              <div className="bg-white  rounded-xl shadow-sm border overflow-hidden" style={{ height: "800px" }}>
                 <DocumentViewer
                   fileId={document._id}
                   pythonFileId={document.python_file_id}

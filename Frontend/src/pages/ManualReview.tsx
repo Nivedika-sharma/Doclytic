@@ -432,16 +432,16 @@ export default function ManualReview() {
 
   return (
     <DashboardLayout>
-      <div className="min-h-screen bg-slate-50 p-8">
+      <div className="min-h-screen bg-slate-50 p-8 dark:bg-gray-800">
         <div className="mb-8 flex items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Manual Review</h1>
-            <p className="text-gray-600 mt-1">Low-confidence documents are parked here until a user confirms the final department.</p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Manual Review</h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">Low-confidence documents are parked here until a user confirms the final department.</p>
           </div>
           <button
             onClick={clearEntireQueue}
             disabled={loading || clearingQueue || manualReviewDocs.length === 0}
-            className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-60"
+            className="px-4 py-2 rounded-lg bg-red-600 dark:text-red-100 text-white dark:text-gray-100 text-sm hover:bg-red-700 disabled:opacity-60"
           >
             {clearingQueue ? "Clearing..." : "Clear Entire Queue"}
           </button>
@@ -450,9 +450,9 @@ export default function ManualReview() {
         {loading ? (
           <div className="py-20 text-center text-gray-500">Loading manual review queue...</div>
         ) : manualReviewDocs.length === 0 ? (
-          <div className="bg-white rounded-2xl p-12 text-center shadow-sm border border-gray-100">
+          <div className="bg-white dark:bg-gray-900/50 rounded-2xl p-12 text-center shadow-sm border border-gray-100 dark:border-gray-700">
             <FileText className="w-10 h-10 mx-auto text-gray-300 mb-3" />
-            <p className="text-gray-500">No documents waiting for manual review.</p>
+            <p className="text-gray-500 dark:text-gray-400">No documents waiting for manual review.</p>
           </div>
         ) : (
           <div className="space-y-4">

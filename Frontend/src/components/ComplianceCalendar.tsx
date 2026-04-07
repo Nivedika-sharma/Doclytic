@@ -297,81 +297,81 @@ export default function ComplianceCalendar() {
 
   return (
     <DashboardLayout>
-      <div className="min-h-screen bg-gray-50 p-6">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-800 p-6">
         <div className="max-w-[1800px] mx-auto">
           
           <div className="flex justify-between items-start mb-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Compliance Calendar</h1>
-              <p className="text-gray-600">Track and manage departmental document deadlines.</p>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">Compliance Calendar</h1>
+              <p className="text-gray-600 dark:text-gray-400">Track and manage departmental document deadlines.</p>
             </div>
             
             <div className="flex gap-3">
-              <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-colors">
+              <button className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-900 font-medium transition-colors">
                 <Download className="w-4 h-4" /> Export CSV
               </button>
-              <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 rounded-lg text-white hover:bg-blue-700 font-medium transition-colors shadow-sm">
+              <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-400 rounded-lg text-white dark:text-gray-700 hover:bg-blue-800 dark:hover:bg-blue-300 font-medium transition-colors shadow-sm">
                 <Plus className="w-4 h-4" /> Add Deadline
               </button>
             </div>
           </div>
 
           {highRiskCount > 0 && (
-            <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg shadow-sm flex items-center justify-between">
+            <div className="mb-6 bg-red-50 dark:bg-red-900/30 border-l-4 border-red-500 dark:border-red-400 p-4 rounded-r-lg shadow-sm flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <AlertTriangle className="w-6 h-6 text-red-600" />
+                <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
                 <div>
-                  <h3 className="text-red-900 font-bold text-sm">Action Required</h3>
-                  <p className="text-red-700 text-sm">There are <strong>{highRiskCount} critical pending deadlines</strong> due within 24 hours.</p>
+                  <h3 className="text-red-900 dark:text-red-100 font-bold text-sm">Action Required</h3>
+                  <p className="text-red-700 dark:text-red-300 text-sm">There are <strong>{highRiskCount} critical pending deadlines</strong> due within 24 hours.</p>
                 </div>
               </div>
               <button 
                 onClick={toggleUrgent} 
-                className={`px-4 py-1.5 text-sm font-semibold rounded transition-colors ${showUrgentOnly ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-red-100 text-red-800 hover:bg-red-200'}`}
+                className={`px-4 py-1.5 text-sm font-semibold rounded transition-colors ${showUrgentOnly ? 'bg-red-600 dark:bg-red-400 text-white dark:text-gray-700 hover:bg-red-700 dark:hover:bg-red-300' : 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-700'}`}
               >
                 {showUrgentOnly ? "Clear Filter" : "View Urgent"}
               </button>
             </div>
           )}
 
-          <div className="bg-white rounded-xl shadow-sm p-4 mb-6 border border-gray-200 flex flex-wrap justify-between items-center gap-4">
-            <div className="flex bg-gray-100 p-1 rounded-lg">
-              <button onClick={() => setViewMode('calendar')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${viewMode === 'calendar' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-600 hover:text-gray-900'}`}>
+          <div className="bg-white dark:bg-gray-900/20 rounded-xl shadow-sm p-4 mb-6 border border-gray-200 dark:border-gray-700 flex flex-wrap justify-between items-center gap-4">
+            <div className="flex bg-gray-100 dark:bg-gray-900 p-1 rounded-lg">
+              <button onClick={() => setViewMode('calendar')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${viewMode === 'calendar' ? 'bg-white dark:bg-gray-800 shadow-sm text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'}`}>
                 <Calendar className="w-4 h-4" /> Calendar
               </button>
-              <button onClick={() => setViewMode('kanban')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${viewMode === 'kanban' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-600 hover:text-gray-900'}`}>
+              <button onClick={() => setViewMode('kanban')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${viewMode === 'kanban' ? 'bg-white dark:bg-gray-800 shadow-sm text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'}`}>
                 <Kanban className="w-4 h-4" /> Board
               </button>
             </div>
 
             <div className="flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2 text-sm bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-lg">
+              <div className="flex items-center gap-2 text-sm bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-3 py-1.5 rounded-lg">
                 <Search className="w-4 h-4 text-gray-500" />
                 <input 
                   type="date" 
                   value={searchDate} 
                   onChange={(e) => setSearchDate(e.target.value)} 
-                  className="bg-transparent border-none text-gray-700 font-medium focus:ring-0 outline-none w-[120px] text-sm cursor-pointer" 
+                  className="bg-transparent border-none text-gray-700 dark:text-gray-300 font-medium focus:ring-0 outline-none w-[120px] text-sm cursor-pointer" 
                   title="Search Specific Date"
                 />
                 {searchDate && (
                   <button onClick={() => setSearchDate("")} title="Clear Date Search">
-                    <X className="w-4 h-4 text-red-500 hover:bg-red-100 rounded-full" />
+                    <X className="w-4 h-4 text-red-500 hover:bg-red-100 dark:hover:bg-red-300 rounded-full" />
                   </button>
                 )}
               </div>
 
-              <div className="h-6 w-px bg-gray-300"></div>
+              <div className="h-6 w-px bg-gray-300 dark:bg-gray-700"></div>
 
               <div className="flex items-center gap-2 text-sm">
                 <Filter className="w-4 h-4 text-gray-500" />
-                <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="border-none bg-transparent font-medium text-gray-700 focus:ring-0 cursor-pointer text-sm p-0 pr-6">
+                <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="border-none bg-transparent font-medium text-gray-700 dark:text-gray-300 focus:ring-0 cursor-pointer text-sm p-0 pr-6">
                   <option value="all">All Months</option>
                   {months.map((m, i) => <option key={i} value={i}>{m}</option>)}
                 </select>
               </div>
               <div className="flex items-center gap-2 text-sm">
-                <select value={selectedDepartment} onChange={(e) => setSelectedDepartment(e.target.value)} className="border-none bg-transparent font-medium text-gray-700 focus:ring-0 cursor-pointer text-sm p-0 pr-6">
+                <select value={selectedDepartment} onChange={(e) => setSelectedDepartment(e.target.value)} className="border-none bg-transparent font-medium text-gray-700 dark:text-gray-300 focus:ring-0 cursor-pointer text-sm p-0 pr-6">
                   <option value="all">All Depts</option>
                   {departments.map((d, i) => <option key={i} value={d}>{d}</option>)}
                 </select>
@@ -386,21 +386,21 @@ export default function ComplianceCalendar() {
                 <div className="text-center py-12 text-gray-500">No events found for this filter.</div>
               ) : (
                 calendarGrid.map(monthData => (
-                  <div key={monthData.monthIndex} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                    <div className="bg-gray-50 border-b border-gray-200 px-6 py-4">
-                      <h2 className="text-xl font-bold text-gray-800">{monthData.monthName} {new Date().getFullYear()}</h2>
+                  <div key={monthData.monthIndex} className="bg-white dark:bg-gray-900/20 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <div className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+                      <h2 className="text-xl font-bold text-gray-800 dark:text-gray-200">{monthData.monthName} {new Date().getFullYear()}</h2>
                     </div>
                     
-                    <div className="grid grid-cols-7 gap-px bg-gray-200">
+                    <div className="grid grid-cols-7 gap-px bg-gray-200 dark:bg-gray-700">
                       {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
-                        <div key={d} className="bg-white py-2 text-center text-xs font-semibold text-gray-500 uppercase">{d}</div>
+                        <div key={d} className="bg-white dark:bg-gray-800 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">{d}</div>
                       ))}
                       
                       {monthData.days.map((dayData, idx) => (
-                        <div key={idx} className="bg-white min-h-[140px] p-2 hover:bg-gray-50 transition-colors flex flex-col group/day">
+                        <div key={idx} className="bg-white dark:bg-gray-800 min-h-[140px] p-2 hover:bg-gray-50 dark:hover:bg-gray-900/80 transition-colors flex flex-col group/day">
                           
                           <div className="flex justify-between items-start mb-2 group-parent">
-                            <span className={`text-sm font-semibold ${dayData.documents.length > 0 || dateNotes[dayData.dateStr] ? 'text-gray-900' : 'text-gray-400'}`}>
+                            <span className={`text-sm font-semibold ${dayData.documents.length > 0 || dateNotes[dayData.dateStr] ? 'text-gray-900 dark:text-gray-100' : 'text-gray-400 dark:text-gray-500'}`}>
                               {dayData.day}
                             </span>
                             <button 
@@ -409,7 +409,7 @@ export default function ComplianceCalendar() {
                                 setActiveNoteText(dateNotes[dayData.dateStr] || "");
                                 setIsNoteModalOpen(true);
                               }}
-                              className={`p-1 rounded-md transition-opacity ${dateNotes[dayData.dateStr] ? 'opacity-100 text-yellow-600 bg-yellow-50' : 'opacity-0 group-hover/day:opacity-100 text-gray-400 hover:bg-gray-100 hover:text-yellow-600'}`}
+                              className={`p-1 rounded-md transition-opacity ${dateNotes[dayData.dateStr] ? 'opacity-100 text-yellow-600 bg-yellow-50' : 'opacity-0 group-hover/day:opacity-100 text-gray-400 hover:bg-gray-100 hover:text-yellow-600 '}`}
                               title="Add Sticky Note"
                             >
                               <StickyNote className="w-3.5 h-3.5" />
