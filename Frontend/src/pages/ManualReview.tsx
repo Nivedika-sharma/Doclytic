@@ -563,29 +563,6 @@ export default function ManualReview() {
                         <ArrowRight className="w-4 h-4" />
                         {routingId === doc._id ? "Routing..." : "Route"}
                       </button>
-                      <button
-                        onClick={async () => {
-                          const confirmed = window.confirm(
-                            "Remove this document from manual review queue and mark prediction as wrong?"
-                          );
-                          if (!confirmed) return;
-                          setDismissingId(doc._id);
-                          try {
-                            await dismissFromQueueWithNegativeFeedback(doc);
-                          } catch (err) {
-                            console.error("Manual review dismiss error:", err);
-                            alert("Could not remove document from manual review queue.");
-                          } finally {
-                            setDismissingId(null);
-                          }
-                        }}
-                        disabled={routingId === doc._id || dismissingId === doc._id}
-                        className="p-2 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-60"
-                        title="Remove from queue (negative feedback)"
-                        aria-label="Remove from queue"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
                     </div>
                   </div>
                 </div>
